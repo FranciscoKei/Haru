@@ -15,9 +15,15 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       height: 100vh;
       color: #fff;
+    }
+    #game-wrap {
+      transform-origin: top center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
     #hud {
       display: flex;
@@ -31,6 +37,37 @@
       font-size: 14px;
       letter-spacing: 2px;
     }
+    /* D-pad (タッチ操作) */
+    #dpad {
+      display: none;
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 168px;
+      height: 168px;
+      z-index: 50;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .dp {
+      position: absolute;
+      width: 52px; height: 52px;
+      background: rgba(0,150,255,0.20);
+      border: 1.5px solid rgba(0,200,255,0.55);
+      border-radius: 10px;
+      color: #0cf;
+      font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+    .dp:active { background: rgba(0,200,255,0.40); }
+    #dp-up    { top: 0;    left: 58px; }
+    #dp-left  { top: 58px; left: 0;    }
+    #dp-right { top: 58px; left: 116px;}
+    #dp-down  { top: 116px;left: 58px; }
     #hud .score-area { color: #0cf; text-shadow: 0 0 6px #0cf; }
     #hud .lives-area { color: #f80; }
     #hud .level-area { color: #0f8; text-shadow: 0 0 6px #0f8; }
@@ -60,17 +97,17 @@
       z-index: 10;
     }
     #overlay h1 {
-      font-size: 36px;
+      font-size: clamp(20px, 5.5vw, 36px);
       color: #0cf;
       text-shadow: 0 0 16px #0cf, 0 0 32px #04f;
       letter-spacing: 4px;
       margin-bottom: 8px;
     }
     #overlay .subtitle {
-      font-size: 14px; color: #88f; margin-bottom: 30px; letter-spacing: 2px;
+      font-size: clamp(11px, 2.2vw, 14px); color: #88f; margin-bottom: 20px; letter-spacing: 2px;
     }
     #overlay .legend {
-      font-size: 13px; line-height: 2.2; margin-bottom: 28px; color: #cce;
+      font-size: clamp(11px, 2vw, 13px); line-height: 2.0; margin-bottom: 20px; color: #cce;
       text-align: left;
     }
     #overlay .legend span { display: inline-block; width: 22px; text-align: center; }
@@ -109,14 +146,24 @@
 </head>
 <body>
 
-<div id="hud">
-  <div class="score-area">SCORE: <span id="scoreVal">0</span></div>
-  <div class="lives-area">AMURO: <span id="livesVal">❤❤❤</span></div>
-  <div class="level-area">STAGE: <span id="levelVal">1</span></div>
-  <div class="vol-area">🔊<input type="range" id="volSlider" min="0" max="100" value="70" oninput="setVolume(this)"></div>
+<div id="game-wrap">
+  <div id="hud">
+    <div class="score-area">SCORE: <span id="scoreVal">0</span></div>
+    <div class="lives-area">AMURO: <span id="livesVal">❤❤❤</span></div>
+    <div class="level-area">STAGE: <span id="levelVal">1</span></div>
+    <div class="vol-area">🔊<input type="range" id="volSlider" min="0" max="100" value="70" oninput="setVolume(this)"></div>
+  </div>
+  <canvas id="canvas" width="640" height="640"></canvas>
 </div>
-<canvas id="canvas" width="640" height="640"></canvas>
 <div id="message"></div>
+
+<!-- D-pad (スマホ用) -->
+<div id="dpad">
+  <div class="dp" id="dp-up"    ontouchstart="dpadDir(-1,0)" ontouchend="dpadEnd()">▲</div>
+  <div class="dp" id="dp-left"  ontouchstart="dpadDir(0,-1)" ontouchend="dpadEnd()">◀</div>
+  <div class="dp" id="dp-right" ontouchstart="dpadDir(0,1)"  ontouchend="dpadEnd()">▶</div>
+  <div class="dp" id="dp-down"  ontouchstart="dpadDir(1,0)"  ontouchend="dpadEnd()">▼</div>
+</div>
 
 <div id="intro" onclick="skipIntro()">
   <canvas id="introCanvas" width="640" height="640"></canvas>
@@ -1689,6 +1736,35 @@ canvas.addEventListener('touchend', e=>{
   }
   e.preventDefault();
 },{passive:false});
+
+// ---- Responsive scaling ----
+const GAME_W = 640, GAME_H = 680; // canvas 640 + HUD ~40
+
+function resizeGame() {
+  const wrap = document.getElementById('game-wrap');
+  const dpad = document.getElementById('dpad');
+  const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  dpad.style.display = isMobile ? 'block' : 'none';
+  const dpadH = isMobile ? 188 : 0;
+  const availW = window.innerWidth;
+  const availH = window.innerHeight - dpadH;
+  const scale = Math.min(availW / GAME_W, availH / GAME_H, 1);
+  wrap.style.transform = `scale(${scale})`;
+  // Vertical centering above D-pad
+  const scaledH = GAME_H * scale;
+  const topPad = Math.max(0, (window.innerHeight - dpadH - scaledH) / 2);
+  document.body.style.paddingTop = topPad + 'px';
+}
+
+// D-pad input
+function dpadDir(dr, dc) {
+  if (!gameRunning) return;
+  amuro.nextDr = dr; amuro.nextDc = dc;
+}
+function dpadEnd() {}
+
+window.addEventListener('resize', resizeGame);
+resizeGame();
 
 // Initial render
 ctx.fillStyle='#000614';
