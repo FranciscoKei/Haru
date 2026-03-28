@@ -413,76 +413,74 @@ function drawAmuro() {
   ctx.save();
   ctx.translate(px, py);
 
-  // Rotate entire SD body to face direction
+  // Rotate to face direction (+x = forward in rotated frame)
   if      (a.dc=== 1) ctx.rotate(0);
   else if (a.dc===-1) ctx.rotate(Math.PI);
   else if (a.dr=== 1) ctx.rotate(Math.PI/2);
   else if (a.dr===-1) ctx.rotate(-Math.PI/2);
-  // In rotated frame: +x = forward, -y = "up" (back of head)
 
   const t = Date.now();
-  const mouth = Math.PI/5 * (0.5 + 0.5*Math.sin(t/120));
-  const R = 17;
+  // Mouth angle: how wide the V opens (Pac-Man chomp)
+  const open = Math.PI / 4 * (0.25 + 0.75 * Math.abs(Math.sin(t / 140)));
+  const TIP = 18;  // forward tip length
+  const BASE = 13; // backward base half-width
 
-  // Outer glow
-  ctx.shadowColor = '#7af'; ctx.shadowBlur = 14;
+  // Glow
+  ctx.shadowColor = '#ffe844'; ctx.shadowBlur = 20;
 
-  // ── White armor body (SD Pac-Man circle) ──
-  ctx.fillStyle = '#ddeeff';
+  // ── Upper fin ──
+  ctx.fillStyle = '#ffee00';
   ctx.beginPath();
-  ctx.moveTo(0,0);
-  ctx.arc(0, 0, R, mouth, Math.PI*2-mouth);
+  ctx.moveTo(-BASE, -3);                          // back-top
+  ctx.lineTo(-BASE,  0);                          // back-center
+  ctx.lineTo( TIP,  TIP * Math.tan(open));        // front tip (mouth top)
+  ctx.lineTo( TIP * 0.5,  TIP * 0.5 * Math.tan(open) - BASE * 0.7); // upper-outer shoulder
   ctx.closePath();
   ctx.fill();
+
+  // ── Lower fin ──
+  ctx.beginPath();
+  ctx.moveTo(-BASE,  3);
+  ctx.moveTo(-BASE,  0);
+  ctx.lineTo( TIP, -TIP * Math.tan(open));
+  ctx.lineTo( TIP * 0.5, -TIP * 0.5 * Math.tan(open) + BASE * 0.7);
+  ctx.lineTo(-BASE,  3);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.shadowBlur = 0;
 
-  // ── Color panels clipped to body circle ──
-  ctx.save();
-  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.clip();
-  // Blue chest stripe
-  ctx.fillStyle = '#2277ee';
-  ctx.fillRect(-R, 3, R*2, 8);
-  // Yellow core block
-  ctx.fillStyle = '#ffcc00';
-  ctx.fillRect(-5, 10, 10, 6);
-  // Red forehead band
+  // ── White inner highlight (gives fin depth) ──
+  ctx.fillStyle = 'rgba(255,255,210,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(-BASE + 3, -2);
+  ctx.lineTo(-BASE + 3,  0);
+  ctx.lineTo( TIP * 0.7,  TIP * 0.7 * Math.tan(open));
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(-BASE + 3,  2);
+  ctx.moveTo(-BASE + 3,  0);
+  ctx.lineTo( TIP * 0.7, -TIP * 0.7 * Math.tan(open));
+  ctx.lineTo(-BASE + 3,  2);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Red base band (forehead center piece) ──
   ctx.fillStyle = '#dd2222';
-  ctx.fillRect(-4, -R, 8, 6);
-  ctx.restore();
+  ctx.shadowColor = '#f44'; ctx.shadowBlur = 6;
+  ctx.fillRect(-BASE, -2.5, 9, 5);
+  ctx.shadowBlur = 0;
 
   // ── Outline ──
-  ctx.strokeStyle = '#88bbff'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,220,80,0.5)'; ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0,0);
-  ctx.arc(0, 0, R, mouth, Math.PI*2-mouth);
-  ctx.closePath();
+  ctx.moveTo(-BASE, 0);
+  ctx.lineTo(TIP,  TIP * Math.tan(open));
+  ctx.moveTo(-BASE, 0);
+  ctx.lineTo(TIP, -TIP * Math.tan(open));
   ctx.stroke();
-
-  // ── V-fin (top = -y in rotated frame) ──
-  ctx.strokeStyle = '#ffdd00'; ctx.lineWidth = 2.5; ctx.lineCap='round';
-  ctx.beginPath();
-  ctx.moveTo(-5, -R+2); ctx.lineTo(0, -R-9); ctx.lineTo(5, -R+2);
-  ctx.stroke();
-
-  // ── Visor (front = +x side, near mouth) ──
-  ctx.fillStyle = '#0033cc';
-  ctx.beginPath();
-  ctx.ellipse(R*0.48, 0, 7, 4, 0, 0, Math.PI*2);
-  ctx.fill();
-  // Visor highlight
-  ctx.fillStyle = 'rgba(120,200,255,0.75)';
-  ctx.beginPath();
-  ctx.ellipse(R*0.42, -1.5, 3, 2, -0.3, 0, Math.PI*2);
-  ctx.fill();
-
-  // ── Shoulder armor (SD puff bumps, top+bottom of circle edge) ──
-  ctx.fillStyle = '#cce4ff';
-  ctx.strokeStyle = '#88bbff'; ctx.lineWidth=1;
-  for (const sy of [-1, 1]) {
-    ctx.beginPath();
-    ctx.arc(2, sy*R*0.72, 6, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-  }
 
   ctx.restore();
 }
