@@ -32,6 +32,18 @@
     #hud .score-area { color: #0cf; text-shadow: 0 0 6px #0cf; }
     #hud .lives-area { color: #f80; }
     #hud .level-area { color: #0f8; text-shadow: 0 0 6px #0f8; }
+    #hud .vol-area { display:flex; align-items:center; gap:6px; color:#aaf; font-size:12px; }
+    #volSlider {
+      -webkit-appearance:none; appearance:none;
+      width:72px; height:4px; border-radius:2px;
+      background: linear-gradient(to right,#0cf var(--v,70%),#224 var(--v,70%));
+      outline:none; cursor:pointer;
+    }
+    #volSlider::-webkit-slider-thumb {
+      -webkit-appearance:none; width:12px; height:12px;
+      border-radius:50%; background:#0cf;
+      box-shadow:0 0 6px #0cf;
+    }
     canvas {
       display: block;
       border: 1px solid #04f;
@@ -99,6 +111,7 @@
   <div class="score-area">SCORE: <span id="scoreVal">0</span></div>
   <div class="lives-area">AMURO: <span id="livesVal">❤❤❤</span></div>
   <div class="level-area">STAGE: <span id="levelVal">1</span></div>
+  <div class="vol-area">🔊<input type="range" id="volSlider" min="0" max="100" value="70" oninput="setVolume(this)"></div>
 </div>
 <canvas id="canvas" width="640" height="640"></canvas>
 <div id="message"></div>
@@ -661,18 +674,24 @@ function update(dt) {
 
 // ---- Sound (Web Audio API) ----
 let audioCtx = null;
+let masterVol = 0.7;
+function setVolume(el) {
+  masterVol = el.value / 100;
+  el.style.setProperty('--v', el.value + '%');
+}
 function getAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
 }
 function tone(freq, type, dur, vol=0.25, t0=0) {
+  if (masterVol === 0) return;
   const ctx = getAudio();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain); gain.connect(ctx.destination);
   osc.type = type; osc.frequency.value = freq;
   const start = ctx.currentTime + t0;
-  gain.gain.setValueAtTime(vol, start);
+  gain.gain.setValueAtTime(vol * masterVol, start);
   gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
   osc.start(start); osc.stop(start + dur);
 }
