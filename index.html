@@ -813,14 +813,217 @@ function stageCleared() {
   gameRunning=false;
   cancelAnimationFrame(animFrame);
   sfxStageClear();
-  showMessage('ステージクリア！', 2000);
-  setTimeout(()=>{
-    initGame();
-    updateHUD();
-    gameRunning=true;
-    lastTime=performance.now();
-    animFrame=requestAnimationFrame(gameLoop);
-  },2200);
+
+  // ---- Stage clear illustration ----
+  const W=640, H=640;
+  const clearedLevel = level - 1; // already incremented
+  const startTs = performance.now();
+  const DURATION = 3500;
+
+  // Confetti particles
+  const confetti = Array.from({length:60},()=>({
+    x: Math.random()*W, y: -10 - Math.random()*60,
+    vx: (Math.random()-0.5)*3, vy: 1.5+Math.random()*3,
+    rot: Math.random()*Math.PI*2, rotV: (Math.random()-0.5)*0.2,
+    w: 6+Math.random()*8, h: 4+Math.random()*5,
+    color: ['#ff4','#f4f','#4ff','#f84','#8f4','#ff8'][Math.floor(Math.random()*6)]
+  }));
+
+  // Beam saber flash
+  function drawBeamSaber(cx, cy, angle, len, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const grd = ctx.createLinearGradient(0,0,len,0);
+    grd.addColorStop(0,'#fff'); grd.addColorStop(0.3,'#0ff'); grd.addColorStop(1,'rgba(0,255,255,0)');
+    ctx.strokeStyle = grd; ctx.lineWidth = 5; ctx.lineCap='round';
+    ctx.shadowColor='#0ff'; ctx.shadowBlur=16;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len,0); ctx.stroke();
+    ctx.globalAlpha=1; ctx.restore();
+  }
+
+  // SD Amuro victory pose
+  function drawVictoryAmuro(cx, cy, scale, t) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    // Slight bob
+    const bob = Math.sin(t*4)*4;
+    ctx.translate(0, bob);
+
+    const R=28;
+
+    // Glow
+    ctx.shadowColor='#7af'; ctx.shadowBlur=20;
+
+    // White body
+    ctx.fillStyle='#ddeeff';
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+
+    // Color panels clipped
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.clip();
+    ctx.fillStyle='#2277ee'; ctx.fillRect(-R,4,R*2,12);
+    ctx.fillStyle='#ffcc00'; ctx.fillRect(-8,15,16,9);
+    ctx.fillStyle='#dd2222'; ctx.fillRect(-6,-R,12,8);
+    ctx.restore();
+
+    // Outline
+    ctx.strokeStyle='#88bbff'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+
+    // V-fin
+    ctx.strokeStyle='#ffdd00'; ctx.lineWidth=3.5; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-7,-R+2); ctx.lineTo(0,-R-14); ctx.lineTo(7,-R+2);
+    ctx.stroke();
+
+    // Visor
+    ctx.fillStyle='#0033cc';
+    ctx.beginPath(); ctx.ellipse(0,-2,14,7,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(120,200,255,0.8)';
+    ctx.beginPath(); ctx.ellipse(-4,-4,6,3.5,-0.3,0,Math.PI*2); ctx.fill();
+
+    // Big smile (happy arc)
+    ctx.strokeStyle='#ffcc00'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(0,10,10,0.2,Math.PI-0.2); ctx.stroke();
+
+    // Arms raised (V pose!)
+    ctx.strokeStyle='#cce4ff'; ctx.lineWidth=8; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-R*0.6,4); ctx.lineTo(-R-14,-R*0.4); // left arm up
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(R*0.6,4);  ctx.lineTo(R+14,-R*0.4);  // right arm up
+    ctx.stroke();
+    // Arm armor
+    ctx.strokeStyle='#88bbff'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-R*0.6,4); ctx.lineTo(-R-14,-R*0.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(R*0.6,4);  ctx.lineTo(R+14,-R*0.4);  ctx.stroke();
+
+    // Shoulder puffs
+    ctx.fillStyle='#cce4ff'; ctx.strokeStyle='#88bbff'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(-R+4,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc( R-4,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Defeated SD Sazabi (chibi slumped)
+  function drawDefeatedSazabi(cx, cy, scale) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.rotate(0.3);
+    // Body
+    ctx.fillStyle='#993333'; ctx.shadowColor='#f33'; ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    // X eyes (defeated)
+    ctx.strokeStyle='#ffaaaa'; ctx.lineWidth=2.5;
+    for(const [ox,oy] of [[-7,-4],[7,-4]]) {
+      ctx.beginPath(); ctx.moveTo(ox-4,oy-4); ctx.lineTo(ox+4,oy+4);
+      ctx.moveTo(ox+4,oy-4); ctx.lineTo(ox-4,oy+4); ctx.stroke();
+    }
+    // Wavy mouth (sulking)
+    ctx.strokeStyle='#ffaaaa'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,10,7,Math.PI*0.1,Math.PI*0.9,true); ctx.stroke();
+    // Fin (drooping)
+    ctx.fillStyle='#772222';
+    ctx.beginPath(); ctx.moveTo(-4,-22); ctx.lineTo(0,-32); ctx.lineTo(4,-22); ctx.fill();
+    ctx.restore();
+  }
+
+  function clearFrame(ts) {
+    const elapsed = ts - startTs;
+    const t = elapsed / 1000;
+    const progress = elapsed / DURATION;
+
+    // Dark starfield bg
+    ctx.fillStyle='rgba(0,0,12,0.92)';
+    ctx.fillRect(0,0,W,H);
+
+    // Stars twinkle
+    for(const s of STARS) {
+      ctx.fillStyle=`rgba(200,220,255,${0.3+0.7*Math.abs(Math.sin(s.x+t))})`;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill();
+    }
+
+    // Confetti
+    for(const p of confetti) {
+      p.x+=p.vx; p.y+=p.vy; p.rot+=p.rotV;
+      if(p.y>H+20){ p.y=-20; p.x=Math.random()*W; }
+      ctx.save();
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.color; ctx.globalAlpha=0.85;
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.globalAlpha=1; ctx.restore();
+    }
+
+    // Radial burst behind character
+    const burst = (Math.sin(t*6)+1)*0.5;
+    const grd = ctx.createRadialGradient(W/2,H/2-30,10,W/2,H/2-30,180);
+    grd.addColorStop(0,`rgba(0,200,255,${0.18*burst})`);
+    grd.addColorStop(1,'rgba(0,200,255,0)');
+    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(W/2,H/2-30,180,0,Math.PI*2); ctx.fill();
+
+    // Beam saber (right hand, swinging)
+    const saberAngle = -0.6 + Math.sin(t*3)*0.3;
+    drawBeamSaber(W/2+90, H/2-50, saberAngle, 110, 0.9);
+
+    // SD Amuro center
+    drawVictoryAmuro(W/2, H/2+10, 2.2, t);
+
+    // Defeated Sazabi bottom-right
+    drawDefeatedSazabi(W-80, H-80, 1.1);
+
+    // "STAGE X クリア！" banner
+    const bannerY = 90 + Math.sin(t*2)*6;
+    ctx.save();
+    // Banner ribbon
+    ctx.fillStyle='rgba(0,30,80,0.85)';
+    ctx.beginPath(); ctx.roundRect(60, bannerY-36, W-120, 72, 12); ctx.fill();
+    ctx.strokeStyle='#0cf'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(60, bannerY-36, W-120, 72, 12); ctx.stroke();
+    // Text
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor='#ff0'; ctx.shadowBlur=16;
+    ctx.fillStyle='#ff0';
+    ctx.font=`bold 36px 'Courier New', monospace`;
+    ctx.fillText(`STAGE ${clearedLevel} クリア！`, W/2, bannerY-8);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#adf'; ctx.font='14px Courier New';
+    ctx.fillText('ニュータイプの力、見せてやる！', W/2, bannerY+20);
+    ctx.restore();
+
+    // Score display
+    ctx.textAlign='center'; ctx.fillStyle='#0cf';
+    ctx.font='16px Courier New';
+    ctx.fillText(`SCORE: ${score}`, W/2, H-40);
+
+    // Fade in/out
+    if (progress < 0.08) {
+      ctx.fillStyle=`rgba(0,0,0,${1-progress/0.08})`;
+      ctx.fillRect(0,0,W,H);
+    }
+    if (progress > 0.82) {
+      ctx.fillStyle=`rgba(0,0,0,${(progress-0.82)/0.18})`;
+      ctx.fillRect(0,0,W,H);
+    }
+
+    if (elapsed < DURATION) {
+      animFrame = requestAnimationFrame(clearFrame);
+    } else {
+      initGame();
+      updateHUD();
+      gameRunning=true;
+      lastTime=performance.now();
+      animFrame=requestAnimationFrame(gameLoop);
+    }
+  }
+  animFrame = requestAnimationFrame(clearFrame);
 }
 
 function gameOver() {
