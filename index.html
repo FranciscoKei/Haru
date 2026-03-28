@@ -3,637 +3,690 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Space Invaders</title>
+  <title>SPACE INVADERS</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-    #canvas { display: block; }
-
-    #hud {
-      position: fixed; top: 0; left: 0; width: 100%; pointer-events: none;
-      color: #0ff; text-shadow: 0 0 8px #0ff;
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
     }
-    #top-bar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 12px 24px; background: rgba(0,0,0,0.5);
-      border-bottom: 1px solid rgba(0,255,255,0.2);
-    }
-    #top-bar span { font-size: 18px; letter-spacing: 2px; }
-    .lives-icon { display: inline-block; color: #f55; text-shadow: 0 0 6px #f55; font-size: 20px; margin-left: 4px; }
-
-    #overlay {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: rgba(0,0,10,0.85); color: #0ff; text-align: center;
-      z-index: 10;
-    }
-    #overlay h1 {
-      font-size: clamp(32px, 6vw, 72px); letter-spacing: 6px;
-      text-shadow: 0 0 20px #0ff, 0 0 40px #00f;
-      margin-bottom: 16px;
-    }
-    #overlay .subtitle { font-size: 18px; color: #8ef; margin-bottom: 40px; letter-spacing: 2px; }
-    #overlay .controls-info {
-      font-size: 14px; color: #6af; margin-bottom: 40px; line-height: 2;
-    }
-    #start-btn {
-      padding: 14px 48px; font-size: 22px; font-family: inherit;
-      background: transparent; border: 2px solid #0ff; color: #0ff;
-      letter-spacing: 4px; cursor: pointer; pointer-events: all;
-      text-shadow: 0 0 8px #0ff; box-shadow: 0 0 16px rgba(0,255,255,0.3);
-      transition: all 0.2s;
-    }
-    #start-btn:hover {
-      background: rgba(0,255,255,0.15);
-      box-shadow: 0 0 32px rgba(0,255,255,0.6);
-    }
-
-    #wave-announce {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      font-size: 48px; color: #ff0; text-shadow: 0 0 20px #ff0;
-      letter-spacing: 4px; pointer-events: none; opacity: 0;
-      transition: opacity 0.4s; z-index: 5;
-    }
-
-    #hit-flash {
-      position: fixed; inset: 0; background: rgba(255,0,0,0);
-      pointer-events: none; z-index: 8;
-      transition: background 0.08s;
-    }
-
-    #life-lost-msg {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      font-size: 36px; color: #ff4444; text-shadow: 0 0 20px #ff0000;
-      letter-spacing: 4px; pointer-events: none; opacity: 0;
-      transition: opacity 0.3s; z-index: 7; white-space: nowrap;
-    }
-
-    #mobile-controls {
-      position: fixed; bottom: 20px; left: 0; width: 100%;
-      display: none; justify-content: space-between; align-items: flex-end;
-      padding: 0 24px; pointer-events: none; z-index: 6;
-    }
-    .btn-group { display: flex; gap: 12px; pointer-events: all; }
-    .ctrl-btn {
-      width: 60px; height: 60px; border-radius: 50%;
-      border: 2px solid rgba(0,255,255,0.6); background: rgba(0,255,255,0.1);
-      color: #0ff; font-size: 24px; display: flex; align-items: center;
-      justify-content: center; cursor: pointer; user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .ctrl-btn:active { background: rgba(0,255,255,0.3); }
-    #fire-btn {
-      width: 80px; height: 80px; border-radius: 50%;
-      border: 2px solid rgba(255,80,80,0.8); background: rgba(255,80,80,0.15);
-      color: #f55; font-size: 28px; display: flex; align-items: center;
-      justify-content: center; cursor: pointer; user-select: none;
-      text-shadow: 0 0 8px #f55; pointer-events: all;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #fire-btn:active { background: rgba(255,80,80,0.4); }
-
-    @media (max-width: 700px) {
-      #mobile-controls { display: flex; }
-      #top-bar span { font-size: 14px; }
+    canvas {
+      display: block;
+      image-rendering: pixelated;
     }
   </style>
 </head>
 <body>
+<canvas id="c"></canvas>
+<script>
+// ─── Canvas setup ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
 
-<canvas id="canvas"></canvas>
+const W = 448, H = 512;
+canvas.width  = W;
+canvas.height = H;
 
-<!-- HUD -->
-<div id="hud">
-  <div id="top-bar">
-    <span>SCORE: <span id="score-val">0</span></span>
-    <span id="title-hud">3D SPACE INVADERS</span>
-    <span>LIVES: <span id="lives-val"></span></span>
-  </div>
-</div>
-
-<!-- Wave announce -->
-<div id="wave-announce"></div>
-
-<!-- Hit flash overlay -->
-<div id="hit-flash"></div>
-<div id="life-lost-msg"></div>
-
-<!-- Start / Game Over overlay -->
-<div id="overlay">
-  <h1>3D SPACE INVADERS</h1>
-  <div class="subtitle">三次元インベーダー</div>
-  <div class="controls-info">
-    ← → &nbsp; 移動 &nbsp;|&nbsp; SPACE / Z &nbsp; 発射<br>
-    WASD / 矢印キー でも操作可能
-  </div>
-  <button id="start-btn">START GAME</button>
-</div>
-
-<!-- Mobile controls -->
-<div id="mobile-controls">
-  <div class="btn-group">
-    <div class="ctrl-btn" id="btn-left">◀</div>
-    <div class="ctrl-btn" id="btn-right">▶</div>
-  </div>
-  <div id="fire-btn">🔫</div>
-</div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
-  }
+// Scale to fit viewport
+function resize() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width  = (W * s) + 'px';
+  canvas.style.height = (H * s) + 'px';
 }
-</script>
+window.addEventListener('resize', resize);
+resize();
 
-<script type="module">
-import * as THREE from 'three';
-
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-function beep(freq, dur, type='square', vol=0.15) {
-  try {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    o.start(); o.stop(audioCtx.currentTime + dur);
-  } catch(e){}
+// ─── Web Audio ─────────────────────────────────────────────────────────────
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur, type = 'square', vol = 0.15) {
+  const g = AC.createGain();
+  const o = AC.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.5, AC.currentTime + dur);
+  g.gain.setValueAtTime(vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime + dur);
 }
-function shootSound() { beep(880, 0.08, 'sawtooth', 0.1); }
-function enemyShootSound() { beep(220, 0.12, 'square', 0.07); }
-function explodeSound(big=false) {
-  beep(big ? 80 : 160, big ? 0.5 : 0.25, 'sawtooth', big ? 0.2 : 0.12);
-}
-function levelUpSound() {
-  [523,659,784,1047].forEach((f,i) => setTimeout(()=>beep(f,0.15,'sine',0.15), i*120));
-}
+function shootSound()   { beep(800, 0.1, 'square', 0.12); }
+function invHitSound()  { beep(200, 0.18, 'sawtooth', 0.2); }
+function playerHitSound(){ beep(80, 0.5, 'sawtooth', 0.3); }
+function ufoSound()     { beep(400 + Math.random()*200, 0.05, 'square', 0.1); }
 
-const canvas = document.getElementById('canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setSize(innerWidth, innerHeight);
+// ─── Invader sprites (7×7 pixel art, 3 rows × 2 frames) ───────────────────
+//   Each sprite: array of 7 strings, each 7 chars ('1' = pixel)
+const SPRITES = {
+  // Row 0 – top row (alien A)
+  A: [
+    ['  111  ','  111  ',' 11111 ','1 111 1','1111111','1 1 1 1',' 1   1 '],
+    ['  111  ','  111  ',' 11111 ','1 111 1','1111111',' 1 1 1 ','1     1'],
+  ],
+  // Row 1 – middle (alien B)
+  B: [
+    [' 1   1 ','  1 1  ',' 11111 ','11 1 11','1111111','1111111','1     1'],
+    [' 1   1 ','1  1  1','111111 ','11 1 11','1111111',' 1   1 ','1 1 1 1'],
+  ],
+  // Row 2 – bottom (alien C)
+  C: [
+    ['   1   ','  111  ',' 11111 ','11 1 11','1111111','1 111 1','  1 1  '],
+    ['   1   ','  111  ',' 11111 ','11 1 11','1111111','  1 1  ','1 1 1 1'],
+  ],
+};
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000008);
-scene.fog = new THREE.FogExp2(0x000010, 0.012);
+const COLORS = { A: '#f55', B: '#ff0', C: '#0f0' };
+const SP = 13; // sprite display size (pixels)
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 300);
-camera.position.set(0, 8, 22);
-camera.lookAt(0, 0, 0);
+// ─── Game state ────────────────────────────────────────────────────────────
+let score, hiScore = 0, lives, level;
+let invaders, bullets, playerBullet, shields;
+let player, ufoBullets;
+let ufo;
+let invDir, invStep, invDropRemaining, invMoveTimer, invMoveInterval;
+let invFrame, frameCount;
+let gameState; // 'title' | 'playing' | 'dead' | 'gameover' | 'win'
+let deathTimer;
+let marchFreqs, marchIdx;
 
-window.addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-});
-
-scene.add(new THREE.AmbientLight(0x111133, 2));
-const dirLight = new THREE.DirectionalLight(0x4488ff, 3);
-dirLight.position.set(5, 20, 10);
-dirLight.castShadow = true;
-scene.add(dirLight);
-const pointLight = new THREE.PointLight(0x00ffff, 2, 40);
-pointLight.position.set(0, 10, 5);
-scene.add(pointLight);
-
-(function buildStars() {
-  const geo = new THREE.BufferGeometry();
-  const N = 2000;
-  const pos = new Float32Array(N * 3);
-  const col = new Float32Array(N * 3);
-  for (let i = 0; i < N; i++) {
-    pos[i*3]   = (Math.random()-0.5)*300;
-    pos[i*3+1] = (Math.random()-0.5)*200;
-    pos[i*3+2] = (Math.random()-0.5)*300;
-    const c = Math.random();
-    col[i*3] = c; col[i*3+1] = c; col[i*3+2] = 1;
-  }
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.4, vertexColors: true })));
-})();
-
-const gridHelper = new THREE.GridHelper(80, 40, 0x001133, 0x001133);
-gridHelper.position.y = -4;
-scene.add(gridHelper);
-
-const playerMat  = new THREE.MeshStandardMaterial({ color: 0x00eeff, emissive: 0x004466, metalness:0.8, roughness:0.2 });
-const bulletMat  = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffaa00, roughness:0.1 });
-const eBulletMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff0000, roughness:0.1 });
-const shieldMat  = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00aa44, transparent: true, opacity: 0.5 });
-
-const enemyColors = [
-  new THREE.MeshStandardMaterial({ color: 0xff0055, emissive: 0x880022, metalness:0.5, roughness:0.3 }),
-  new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0x882200, metalness:0.5, roughness:0.3 }),
-  new THREE.MeshStandardMaterial({ color: 0xcc00ff, emissive: 0x660088, metalness:0.5, roughness:0.3 }),
+// ─── Shield pixel map (22×16) ──────────────────────────────────────────────
+const SHIELD_SHAPE = [
+  '0000011111111111100000',
+  '0001111111111111111000',
+  '0011111111111111111100',
+  '0111111111111111111110',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111110000000011111111',
+  '1111100000000001111111',
+  '1111000000000000111111',
+  '1110000000000000011111',
+  '1100000000000000001111',
 ];
 
-function makePlayerMesh() {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.6, 8), playerMat.clone());
-  body.rotation.x = Math.PI;
-  group.add(body);
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.15, 0.8), playerMat.clone());
-  wing.position.y = 0.1;
-  group.add(wing);
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8),
-    new THREE.MeshStandardMaterial({ color:0x0088ff, emissive:0x00ffff, emissiveIntensity:2 }));
-  glow.position.y = 0.7;
-  group.add(glow);
-  group.castShadow = true;
-  return group;
-}
-
-function makeEnemyMesh(row) {
-  const group = new THREE.Group();
-  const mat = enemyColors[row % enemyColors.length].clone();
-  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), mat);
-  body.castShadow = true;
-  group.add(body);
-  const eyeMat = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xffff00, emissiveIntensity:2 });
-  for (let s of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), eyeMat);
-    eye.position.set(s * 0.22, 0.15, 0.42);
-    group.add(eye);
-  }
-  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6),
-    new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0x88ffff }));
-  ant.position.y = 0.75;
-  group.add(ant);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6),
-    new THREE.MeshStandardMaterial({ color:0xff4444, emissive:0xff0000, emissiveIntensity:3 }));
-  tip.position.y = 1.02;
-  group.add(tip);
-  return group;
-}
-
-const COLS = 8, ROWS = 3;
-const PLAY_W = 18, PLAY_Z = 0;
-const ENEMY_SPACING_X = 2.6, ENEMY_SPACING_Y = 2.2;
-const BULLET_SPEED = 0.38, EBULLET_SPEED = 0.15;
-const PLAYER_SPEED = 0.15;
-const SHOOT_COOLDOWN = 300;
-
-let state = 'title';
-let score = 0, lives = 3, wave = 1;
-let playerX = 0;
-let enemies = [], bullets = [], eBullets = [], particles = [], shields = [];
-let lastShot = 0;
-let enemyDir = 1, enemySpeed = 0.018, enemyDropZ = 0;
-let enemyMoveTimer = 0, enemyShootTimer = 0;
-let playerMesh, playerLight;
-let waveAnnounceTimer = 0;
-let invincibleTimer = 0, blinkTimer = 0;
-let shakeTimer = 0, shakeIntensity = 0;
-
-const keys = {};
-const mobileInput = { left: false, right: false };
-
-function createPlayer() {
-  if (playerMesh) scene.remove(playerMesh);
-  playerMesh = makePlayerMesh();
-  playerMesh.position.set(0, -1.5, PLAY_Z + 8);
-  scene.add(playerMesh);
-  playerLight = new THREE.PointLight(0x00ffff, 1.5, 8);
-  playerMesh.add(playerLight);
-}
-
-function createShields() {
-  shields.forEach(s => scene.remove(s.mesh));
-  shields = [];
-  for (const px of [-7, -2.5, 2.5, 7]) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 0.3), shieldMat.clone());
-    mesh.position.set(px, -1.5, PLAY_Z + 5.5);
-    scene.add(mesh);
-    shields.push({ mesh, hp: 3 });
-  }
-}
-
-function createEnemies() {
-  enemies.forEach(e => scene.remove(e.mesh));
-  enemies = [];
-  const startX = -((COLS - 1) * ENEMY_SPACING_X) / 2;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const mesh = makeEnemyMesh(r);
-      mesh.position.set(startX + c * ENEMY_SPACING_X, 2 - r * ENEMY_SPACING_Y * 0.5, PLAY_Z - 8 - r * 1.2);
-      scene.add(mesh);
-      enemies.push({ mesh, col: c, row: r, hp: r === 0 ? 2 : 1,
-        points: (ROWS - r) * 10 * wave, alive: true, bobPhase: Math.random() * Math.PI * 2 });
+function makeShield(x, y) {
+  const pixels = [];
+  for (let r = 0; r < SHIELD_SHAPE.length; r++) {
+    for (let c = 0; c < SHIELD_SHAPE[r].length; c++) {
+      if (SHIELD_SHAPE[r][c] === '1') pixels.push({x: x + c*2, y: y + r*2});
     }
   }
+  return pixels;
 }
 
-function spawnBullet(x, y, z) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 6), bulletMat.clone());
-  mesh.position.set(x, y, z);
-  mesh.add(new THREE.PointLight(0xffff00, 2, 4));
-  scene.add(mesh);
-  bullets.push({ mesh });
-  shootSound();
-}
+// ─── Init / reset ──────────────────────────────────────────────────────────
+function init(lvl = 1) {
+  level = lvl;
+  score = lvl === 1 ? 0 : score;
+  lives = 3;
+  frameCount = 0;
+  invFrame = 0;
+  bullets = [];
+  ufoBullets = [];
+  playerBullet = null;
+  ufo = null;
 
-function spawnEBullet(x, y, z) {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), eBulletMat.clone());
-  mesh.position.set(x, y, z);
-  mesh.add(new THREE.PointLight(0xff2200, 1.5, 5));
-  scene.add(mesh);
-  eBullets.push({ mesh });
-  enemyShootSound();
-}
+  player = { x: W / 2 - 8, y: H - 40, w: 26, h: 12, alive: true };
 
-function spawnExplosion(pos, color, big = false) {
-  for (let i = 0; i < (big ? 24 : 12); i++) {
-    const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(big ? 0.25 : 0.15, 4, 4),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2, transparent: true })
-    );
-    mesh.position.copy(pos);
-    const vel = new THREE.Vector3(
-      (Math.random()-0.5)*(big?0.3:0.2),
-      (Math.random()-0.5)*(big?0.3:0.2),
-      (Math.random()-0.5)*(big?0.3:0.2)
-    );
-    scene.add(mesh);
-    particles.push({ mesh, vel, life: 1.0, decay: big ? 0.025 : 0.04 });
+  // 5 columns × 11 rows isn't classic; classic is 11 cols × 5 rows
+  const cols = 11, rows = 5;
+  const startX = 24, startY = 80;
+  const xGap = 36, yGap = 28;
+  invaders = [];
+  for (let r = 0; r < rows; r++) {
+    const type = r === 0 ? 'C' : r <= 2 ? 'B' : 'A';
+    for (let c = 0; c < cols; c++) {
+      invaders.push({
+        x: startX + c * xGap,
+        y: startY + r * yGap,
+        type,
+        alive: true,
+        frame: 0,
+      });
+    }
   }
-  explodeSound(big);
+
+  invDir = 1;
+  invStep = 2 + level;
+  invDropRemaining = 0;
+  invMoveTimer = 0;
+  invMoveInterval = 50; // frames between moves; shrinks as invaders die
+
+  marchFreqs = [160, 130, 100, 80];
+  marchIdx = 0;
+
+  shields = [];
+  const shieldXs = [44, 142, 242, 340];
+  shieldXs.forEach(sx => shields.push(...makeShield(sx, H - 110)));
+
+  gameState = 'playing';
+  deathTimer = 0;
 }
 
-function dist2D(a, b) {
-  return Math.sqrt((a.x-b.x)**2 + (a.z-b.z)**2);
-}
-
-function initGame() {
-  [...bullets, ...eBullets].forEach(b => scene.remove(b.mesh));
-  particles.forEach(p => scene.remove(p.mesh));
-  bullets = []; eBullets = []; particles = [];
-  score = 0; lives = 3; wave = 1; playerX = 0;
-  enemyDir = 1; enemySpeed = 0.018; enemyDropZ = 0;
-  invincibleTimer = 0; blinkTimer = 0; shakeTimer = 0;
-  createPlayer(); createShields(); createEnemies();
-  updateHUD(); state = 'playing'; showWaveAnnounce(wave);
-}
-
-function nextWave() {
-  wave++;
-  [...bullets, ...eBullets].forEach(b => scene.remove(b.mesh));
-  bullets = []; eBullets = [];
-  enemyDir = 1; enemySpeed = 0.018 + (wave-1)*0.003; enemyDropZ = 0;
-  createShields(); createEnemies();
-  updateHUD(); state = 'playing'; showWaveAnnounce(wave); levelUpSound();
-}
-
-function showWaveAnnounce(w) {
-  const el = document.getElementById('wave-announce');
-  el.textContent = `WAVE ${w}`;
-  el.style.opacity = '1';
-  waveAnnounceTimer = 2.0;
-}
-
-function updateHUD() {
-  document.getElementById('score-val').textContent = score;
-  document.getElementById('lives-val').innerHTML =
-    Array(lives).fill('<span class="lives-icon">♥</span>').join('');
-}
-
-const overlay   = document.getElementById('overlay');
-const startBtn  = document.getElementById('start-btn');
-const overlayTitle = overlay.querySelector('h1');
-const overlaySub   = overlay.querySelector('.subtitle');
-
-startBtn.addEventListener('click', () => {
-  audioCtx.resume();
-  if (state === 'playing') return;
-  overlay.style.display = 'none';
-  initGame();
-});
-
-function showOverlay(title, sub, btnText) {
-  overlayTitle.textContent = title;
-  overlaySub.textContent = sub;
-  startBtn.textContent = btnText;
-  overlay.style.display = 'flex';
-}
-
+// ─── Input ─────────────────────────────────────────────────────────────────
+const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (state === 'playing' && (e.code === 'Space' || e.code === 'KeyZ')) { tryShoot(); e.preventDefault(); }
-  if (e.code === 'Space' && (state === 'dead' || state === 'gameover' || state === 'title')) startBtn.click();
+  if (e.code === 'Space') e.preventDefault();
+  if (gameState === 'title' && e.code === 'Space') {
+    AC.resume();
+    init(1);
+  }
+  if ((gameState === 'gameover' || gameState === 'win') && e.code === 'Space') {
+    AC.resume();
+    init(1);
+  }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-document.getElementById('btn-left').addEventListener('touchstart',  e => { mobileInput.left  = true;  e.preventDefault(); }, {passive:false});
-document.getElementById('btn-left').addEventListener('touchend',    e => { mobileInput.left  = false; e.preventDefault(); }, {passive:false});
-document.getElementById('btn-right').addEventListener('touchstart', e => { mobileInput.right = true;  e.preventDefault(); }, {passive:false});
-document.getElementById('btn-right').addEventListener('touchend',   e => { mobileInput.right = false; e.preventDefault(); }, {passive:false});
-document.getElementById('fire-btn').addEventListener('touchstart',  e => { tryShoot(); e.preventDefault(); }, {passive:false});
-document.getElementById('fire-btn').addEventListener('click', () => tryShoot());
+// Mobile touch
+let touchStartX = null;
+canvas.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  AC.resume();
+  if (gameState === 'title' || gameState === 'gameover' || gameState === 'win') {
+    init(1); return;
+  }
+  if (gameState === 'playing' && player.alive) fireBullet();
+}, {passive: false});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!touchStartX) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  const scale = W / canvas.getBoundingClientRect().width;
+  player.x += dx * scale;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+  touchStartX = e.touches[0].clientX;
+}, {passive: false});
 
-function tryShoot() {
-  if (state !== 'playing') return;
-  const now = Date.now();
-  if (now - lastShot < SHOOT_COOLDOWN) return;
-  lastShot = now;
-  spawnBullet(playerMesh.position.x, playerMesh.position.y, playerMesh.position.z - 0.5);
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function aliveInvaders() { return invaders.filter(i => i.alive); }
+
+function fireBullet() {
+  if (playerBullet) return;
+  playerBullet = { x: player.x + player.w / 2, y: player.y - 4, w: 2, h: 10 };
+  shootSound();
 }
 
-const clock = new THREE.Clock();
-let frameCount = 0;
+function invaderFire() {
+  const alive = aliveInvaders();
+  if (!alive.length) return;
+  // Pick a random invader from the bottom of each column
+  const cols = {};
+  alive.forEach(inv => {
+    const col = Math.round(inv.x / 36);
+    if (!cols[col] || inv.y > cols[col].y) cols[col] = inv;
+  });
+  const shooters = Object.values(cols);
+  const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  bullets.push({ x: shooter.x + SP / 2, y: shooter.y + SP + 2, w: 2, h: 10, phase: 0 });
+}
 
-function update(dt) {
-  if (state !== 'playing') return;
+function rectHit(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// ─── Update ────────────────────────────────────────────────────────────────
+let lastShot = 0;
+let ufoTimer = 0;
+let invFireTimer = 0;
+
+function update() {
+  if (gameState !== 'playing') return;
   frameCount++;
 
-  if (waveAnnounceTimer > 0) {
-    waveAnnounceTimer -= dt;
-    if (waveAnnounceTimer <= 0) document.getElementById('wave-announce').style.opacity = '0';
+  if (!player.alive) {
+    deathTimer--;
+    if (deathTimer <= 0) {
+      if (lives <= 0) { gameState = 'gameover'; return; }
+      player.alive = true;
+      playerBullet = null;
+      bullets = [];
+    }
+    return;
   }
 
-  // 無敵・点滅・シェイク
-  if (invincibleTimer > 0) {
-    invincibleTimer -= dt;
-    blinkTimer += dt;
-    if (playerMesh) playerMesh.visible = Math.floor(blinkTimer * 10) % 2 === 0;
-    if (invincibleTimer <= 0 && playerMesh) playerMesh.visible = true;
-  }
-  if (shakeTimer > 0) {
-    shakeTimer -= dt;
-    const s = shakeIntensity * (shakeTimer / 0.4);
-    camera.position.x += (Math.random()-0.5) * s;
-    camera.position.y += (Math.random()-0.5) * s * 0.5;
+  // ── Player movement ──
+  const speed = 3;
+  if (keys['ArrowLeft']  || keys['KeyA']) player.x -= speed;
+  if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+
+  // ── Shoot ──
+  if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && frameCount - lastShot > 8) {
+    fireBullet();
+    lastShot = frameCount;
   }
 
-  // プレイヤー移動
-  const moveLeft  = keys['ArrowLeft']  || keys['KeyA'] || mobileInput.left;
-  const moveRight = keys['ArrowRight'] || keys['KeyD'] || mobileInput.right;
-  if (moveLeft)  playerX = Math.max(-PLAY_W/2, playerX - PLAYER_SPEED*(dt/0.016));
-  if (moveRight) playerX = Math.min( PLAY_W/2, playerX + PLAYER_SPEED*(dt/0.016));
-  playerMesh.position.x = playerX;
-  playerMesh.rotation.z = moveLeft ? 0.2 : moveRight ? -0.2 : 0;
-  playerMesh.position.y = -1.5 + Math.sin(frameCount*0.05)*0.08;
+  // ── Player bullet ──
+  if (playerBullet) {
+    playerBullet.y -= 8;
+    if (playerBullet.y < 0) { playerBullet = null; }
+  }
 
-  // 自弾処理
-  for (let i = bullets.length-1; i >= 0; i--) {
-    const b = bullets[i];
-    b.mesh.position.z -= BULLET_SPEED*(dt/0.016);
-    if (b.mesh.position.z < -30) { scene.remove(b.mesh); bullets.splice(i,1); continue; }
-    let hit = false;
-    for (const e of enemies) {
-      if (!e.alive) continue;
-      if (dist2D(b.mesh.position, e.mesh.position) < 1.1 &&
-          Math.abs(b.mesh.position.z - e.mesh.position.z) < 1.1) {
-        e.hp--; scene.remove(b.mesh); bullets.splice(i,1); hit = true;
-        spawnExplosion(e.mesh.position, 0xff4400);
-        if (e.hp <= 0) {
-          e.alive = false; scene.remove(e.mesh);
-          score += e.points;
-          spawnExplosion(e.mesh.position, 0xff8800, true);
-          updateHUD();
-        }
-        break;
+  // ── Invader march ──
+  invMoveTimer++;
+  const alive = aliveInvaders();
+  const dynInterval = Math.max(4, Math.floor(invMoveInterval * alive.length / 55));
+
+  if (invMoveTimer >= dynInterval) {
+    invMoveTimer = 0;
+    invFrame = 1 - invFrame;
+    alive.forEach(i => i.frame = invFrame);
+
+    // March sound
+    beep(marchFreqs[marchIdx % 4], 0.06, 'square', 0.1);
+    marchIdx++;
+
+    if (invDropRemaining > 0) {
+      // Dropping
+      alive.forEach(i => i.y += 4);
+      invDropRemaining -= 4;
+    } else {
+      // Horizontal
+      let hitEdge = false;
+      alive.forEach(i => {
+        i.x += invDir * invStep;
+        if (i.x <= 4 || i.x >= W - SP - 4) hitEdge = true;
+      });
+      if (hitEdge) {
+        invDir *= -1;
+        invDropRemaining = 16;
       }
     }
-    if (hit) continue;
-    for (const s of shields) {
-      if (!s.mesh.visible) continue;
-      if (dist2D(b.mesh.position, s.mesh.position) < 1.4 &&
-          Math.abs(b.mesh.position.z - s.mesh.position.z) < 0.5) {
-        s.hp--; scene.remove(b.mesh); bullets.splice(i,1);
-        spawnExplosion(b.mesh.position, 0x00ff88);
-        if (s.hp <= 0) s.mesh.visible = false;
-        hit = true; break;
-      }
-    }
-  }
 
-  // 敵弾処理
-  for (let i = eBullets.length-1; i >= 0; i--) {
-    const b = eBullets[i];
-    b.mesh.position.z += EBULLET_SPEED*(dt/0.016);
-    if (b.mesh.position.z > 20) { scene.remove(b.mesh); eBullets.splice(i,1); continue; }
-    // vsプレイヤー（無敵中はスキップ）
-    if (invincibleTimer <= 0 &&
-        dist2D(b.mesh.position, playerMesh.position) < 1.0 &&
-        Math.abs(b.mesh.position.z - playerMesh.position.z) < 0.8) {
-      scene.remove(b.mesh); eBullets.splice(i,1);
-      hitPlayer(); continue;
-    }
-    let shieldHit = false;
-    for (const s of shields) {
-      if (!s.mesh.visible) continue;
-      if (dist2D(b.mesh.position, s.mesh.position) < 1.4 &&
-          Math.abs(b.mesh.position.z - s.mesh.position.z) < 0.5) {
-        s.hp--; scene.remove(b.mesh); eBullets.splice(i,1);
-        spawnExplosion(b.mesh.position, 0x00ff88);
-        if (s.hp <= 0) s.mesh.visible = false;
-        shieldHit = true; break;
-      }
-    }
-    if (shieldHit) continue;
-  }
-
-  // 敵移動
-  const aliveEnemies = enemies.filter(e => e.alive);
-  if (aliveEnemies.length === 0) { nextWave(); return; }
-
-  enemyMoveTimer += dt;
-  const moveInterval = Math.max(0.008, 0.022 - aliveEnemies.length*0.0004) * Math.max(0.5, 1-wave*0.05);
-  if (enemyMoveTimer >= moveInterval) {
-    enemyMoveTimer = 0;
-    let drop = false;
-    for (const e of aliveEnemies) e.mesh.position.x += enemyDir * 0.22;
-    const xs = aliveEnemies.map(e => e.mesh.position.x);
-    if (Math.max(...xs) > PLAY_W/2-1 || Math.min(...xs) < -PLAY_W/2+1) { enemyDir *= -1; drop = true; }
-    if (drop) { enemyDropZ += 0.6; for (const e of aliveEnemies) e.mesh.position.z += 0.6; }
-  }
-
-  for (const e of enemies) {
-    if (!e.alive) continue;
-    e.bobPhase += dt*1.5;
-    e.mesh.position.y += Math.sin(e.bobPhase)*0.005;
-    e.mesh.rotation.y += dt*0.8;
-  }
-
-  for (const e of aliveEnemies) {
-    if (e.mesh.position.z > playerMesh.position.z - 1) {
-      spawnExplosion(playerMesh.position, 0x00ffff, true);
-      state = 'gameover';
-      setTimeout(() => showOverlay('GAME OVER', `SCORE: ${score}  WAVE: ${wave}`, 'PLAY AGAIN'), 1200);
+    // Check if invaders reached the player row
+    if (alive.some(i => i.y + SP >= player.y)) {
+      gameState = 'gameover';
       return;
     }
   }
 
-  enemyShootTimer -= dt;
-  if (enemyShootTimer <= 0) {
-    const interval = Math.max(0.4, 1.8 - wave*0.12);
-    enemyShootTimer = interval * (0.5 + Math.random()*0.5);
-    const byCol = {};
-    for (const e of aliveEnemies) {
-      if (!byCol[e.col] || e.row > byCol[e.col].row) byCol[e.col] = e;
+  // ── Invader fire ──
+  invFireTimer++;
+  const fireInterval = Math.max(20, 60 - level * 5);
+  if (invFireTimer >= fireInterval) {
+    invFireTimer = 0;
+    invaderFire();
+  }
+
+  // ── Enemy bullets ──
+  bullets.forEach(b => {
+    b.y += 4;
+    b.phase++;
+    // Zigzag
+    b.x += Math.sin(b.phase * 0.4) * 1.5;
+  });
+  bullets = bullets.filter(b => b.y < H);
+
+  // ── UFO ──
+  ufoTimer++;
+  if (!ufo && ufoTimer > 600 + Math.random() * 600) {
+    ufoTimer = 0;
+    ufo = { x: ufoDir() === 1 ? -40 : W + 40, y: 36, dir: ufoDir(), alive: true, flashTimer: 0 };
+  }
+  function ufoDir() { return Math.random() < 0.5 ? 1 : -1; }
+  if (ufo) {
+    ufo.x += ufo.dir * 2;
+    if (ufoTimer % 3 === 0) ufoSound();
+    if (ufo.x < -60 || ufo.x > W + 60) ufo = null;
+    if (ufo && ufo.flashTimer > 0) {
+      ufo.flashTimer--;
+      if (ufo.flashTimer <= 0) ufo = null;
     }
-    const shooters = Object.values(byCol);
-    const shooter = shooters[Math.floor(Math.random()*shooters.length)];
-    if (shooter) spawnEBullet(shooter.mesh.position.x, shooter.mesh.position.y-0.5, shooter.mesh.position.z);
   }
 
-  for (let i = particles.length-1; i >= 0; i--) {
-    const p = particles[i];
-    p.mesh.position.addScaledVector(p.vel, dt/0.016);
-    p.life -= p.decay*(dt/0.016);
-    p.mesh.material.opacity = Math.max(0, p.life);
-    p.mesh.scale.setScalar(p.life);
-    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i,1); }
+  // ── Collisions: player bullet → invaders ──
+  if (playerBullet) {
+    for (let i = 0; i < invaders.length; i++) {
+      const inv = invaders[i];
+      if (!inv.alive) continue;
+      if (rectHit(playerBullet.x, playerBullet.y, playerBullet.w, playerBullet.h,
+                  inv.x, inv.y, SP, SP)) {
+        inv.alive = false;
+        playerBullet = null;
+        const pts = inv.type === 'C' ? 30 : inv.type === 'B' ? 20 : 10;
+        score += pts;
+        invHitSound();
+        break;
+      }
+    }
   }
 
-  camera.position.x += (playerX*0.15 - camera.position.x)*0.04;
+  // ── Collisions: player bullet → UFO ──
+  if (playerBullet && ufo && !ufo.flashTimer) {
+    if (rectHit(playerBullet.x, playerBullet.y, playerBullet.w, playerBullet.h,
+                ufo.x, ufo.y, 36, 12)) {
+      const bonus = (Math.floor(Math.random() * 6) + 1) * 50;
+      score += bonus;
+      ufo.score = bonus;
+      ufo.flashTimer = 60;
+      playerBullet = null;
+      beep(1200, 0.3, 'sawtooth', 0.2);
+    }
+  }
+
+  // ── Collisions: player bullet → shields ──
+  if (playerBullet) {
+    for (let i = shields.length - 1; i >= 0; i--) {
+      const p = shields[i];
+      if (rectHit(playerBullet.x, playerBullet.y, 2, 10, p.x, p.y, 2, 2)) {
+        shields.splice(i, 1);
+        playerBullet = null;
+        break;
+      }
+    }
+  }
+
+  // ── Collisions: enemy bullets → shields ──
+  for (let bi = bullets.length - 1; bi >= 0; bi--) {
+    const b = bullets[bi];
+    let hit = false;
+    for (let si = shields.length - 1; si >= 0; si--) {
+      const p = shields[si];
+      if (rectHit(b.x, b.y, b.w, b.h, p.x, p.y, 2, 2)) {
+        // Destroy a cluster of shield pixels
+        const cx = p.x, cy = p.y;
+        for (let k = shields.length - 1; k >= 0; k--) {
+          const d = Math.hypot(shields[k].x - cx, shields[k].y - cy);
+          if (d < 6) shields.splice(k, 1);
+        }
+        hit = true;
+        break;
+      }
+    }
+    if (hit) { bullets.splice(bi, 1); continue; }
+  }
+
+  // ── Collisions: enemy bullets → player ──
+  for (let bi = bullets.length - 1; bi >= 0; bi--) {
+    const b = bullets[bi];
+    if (rectHit(b.x, b.y, b.w, b.h, player.x, player.y, player.w, player.h)) {
+      bullets.splice(bi, 1);
+      lives--;
+      player.alive = false;
+      deathTimer = 90;
+      playerBullet = null;
+      playerHitSound();
+      break;
+    }
+  }
+
+  // ── Win condition ──
+  if (aliveInvaders().length === 0) {
+    gameState = 'win';
+    if (score > hiScore) hiScore = score;
+  }
 }
 
-function hitPlayer() {
-  // 赤フラッシュ
-  const flash = document.getElementById('hit-flash');
-  flash.style.background = 'rgba(255,0,0,0.55)';
-  setTimeout(() => { flash.style.background = 'rgba(255,0,0,0)'; }, 120);
+// ─── Draw helpers ──────────────────────────────────────────────────────────
+function drawSprite(sprite, frame, x, y, color) {
+  const rows = sprite[frame];
+  const px = 2;
+  ctx.fillStyle = color;
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      if (rows[r][c] === '1') {
+        ctx.fillRect(Math.round(x + c * px), Math.round(y + r * px), px, px);
+      }
+    }
+  }
+}
 
-  // カメラシェイク
-  shakeTimer = 0.4; shakeIntensity = 0.6;
+function drawPlayer(x, y) {
+  ctx.fillStyle = '#0f0';
+  // Base
+  ctx.fillRect(x, y + 8, 26, 4);
+  // Body
+  ctx.fillRect(x + 4, y + 4, 18, 4);
+  // Cabin
+  ctx.fillRect(x + 10, y, 6, 4);
+  // Cannon
+  ctx.fillRect(x + 12, y - 4, 2, 4);
+}
 
-  spawnExplosion(playerMesh.position, 0x00ffff, true);
-  lives--;
-  updateHUD();
+function drawBullet(b) {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+}
 
-  if (lives <= 0) {
-    state = 'gameover';
-    scene.remove(playerMesh);
-    setTimeout(() => showOverlay('GAME OVER', `SCORE: ${score}  WAVE: ${wave}`, 'PLAY AGAIN'), 1200);
+function drawEnemyBullet(b) {
+  // Zigzag / lightning bolt
+  ctx.strokeStyle = '#f80';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const segs = 4;
+  const segH = b.h / segs;
+  for (let i = 0; i <= segs; i++) {
+    const bx = b.x + (i % 2 === 0 ? 0 : 3);
+    const by = b.y + i * segH;
+    i === 0 ? ctx.moveTo(bx, by) : ctx.lineTo(bx, by);
+  }
+  ctx.stroke();
+}
+
+function drawUFO(u) {
+  if (u.flashTimer > 0) {
+    if (u.flashTimer % 8 < 4) {
+      ctx.fillStyle = '#ff0';
+      ctx.font = 'bold 12px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(u.score, u.x + 18, u.y + 8);
+    }
+    return;
+  }
+  ctx.fillStyle = '#f0f';
+  // Saucer body
+  ctx.beginPath();
+  ctx.ellipse(u.x + 18, u.y + 8, 18, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Dome
+  ctx.beginPath();
+  ctx.ellipse(u.x + 18, u.y + 4, 9, 5, 0, Math.PI, 0);
+  ctx.fill();
+  // Windows
+  ctx.fillStyle = '#f8f';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(u.x + 10 + i * 8, u.y + 8, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawShields() {
+  ctx.fillStyle = '#0f0';
+  shields.forEach(p => ctx.fillRect(p.x, p.y, 2, 2));
+}
+
+function drawExplosion(x, y) {
+  ctx.fillStyle = '#f80';
+  ctx.font = 'bold 20px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('*', x, y);
+}
+
+function drawHUD() {
+  ctx.fillStyle = '#0f0';
+  ctx.font = '14px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText('SCORE: ' + String(score).padStart(5, '0'), 10, 22);
+  ctx.textAlign = 'center';
+  ctx.fillText('HI-SCORE: ' + String(hiScore).padStart(5, '0'), W / 2, 22);
+  ctx.textAlign = 'right';
+  ctx.fillText('LIVES: ' + '▶'.repeat(Math.max(0, lives)), W - 10, 22);
+
+  // Level indicator
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0af';
+  ctx.fillText('LEVEL ' + level, W - 10, 40);
+
+  // Bottom line
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H - 22);
+  ctx.lineTo(W, H - 22);
+  ctx.stroke();
+}
+
+function drawTitle() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  // Starfield
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 80; i++) {
+    const sx = ((i * 137 + 31) % W);
+    const sy = ((i * 97  + 17) % H);
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0ff';
+  ctx.font = 'bold 36px Courier New';
+  ctx.fillText('SPACE', W/2, 110);
+  ctx.fillText('INVADERS', W/2, 150);
+
+  // Sample invaders
+  const demo = [
+    {type:'C', x: W/2 - 100, y: 190},
+    {type:'B', x: W/2 - 40,  y: 190},
+    {type:'A', x: W/2 + 20,  y: 190},
+  ];
+  demo.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+
+  ctx.fillStyle = '#0f0';
+  ctx.font = '12px Courier New';
+  ctx.fillText('= 10 PTS', W/2 - 60, 225);
+
+  const demo2 = [
+    {type:'B', x: W/2 - 100, y: 240},
+    {type:'A', x: W/2 - 40,  y: 240},
+  ];
+  demo2.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+  ctx.fillText('= 20 PTS', W/2 - 60, 276);
+
+  const demo3 = [{type:'C', x: W/2 - 100, y: 290}];
+  demo3.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+  ctx.fillText('= 30 PTS', W/2 - 60, 326);
+
+  ctx.fillStyle = '#f0f';
+  ctx.font = '12px Courier New';
+  ctx.fillText('UFO = ???  PTS', W/2, 360);
+
+  ctx.fillStyle = '#ff0';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE TO START', W/2, 420);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '11px Courier New';
+  ctx.fillText('← → MOVE   SPACE FIRE', W/2, 455);
+  ctx.fillText('(TOUCH: SWIPE + TAP)', W/2, 472);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f00';
+  ctx.font = 'bold 40px Courier New';
+  ctx.fillText('GAME OVER', W/2, H/2 - 20);
+  ctx.fillStyle = '#ff0';
+  ctx.font = '16px Courier New';
+  ctx.fillText('SCORE: ' + score, W/2, H/2 + 20);
+  if (score >= hiScore) ctx.fillText('NEW HI-SCORE!', W/2, H/2 + 42);
+  ctx.fillStyle = '#fff';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE TO RETRY', W/2, H/2 + 80);
+}
+
+function drawWin() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0ff';
+  ctx.font = 'bold 32px Courier New';
+  ctx.fillText('STAGE CLEAR!', W/2, H/2 - 20);
+  ctx.fillStyle = '#ff0';
+  ctx.font = '16px Courier New';
+  ctx.fillText('SCORE: ' + score, W/2, H/2 + 20);
+  ctx.fillStyle = '#fff';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE FOR NEXT LEVEL', W/2, H/2 + 80);
+}
+
+// ─── Main draw ─────────────────────────────────────────────────────────────
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  if (gameState === 'title') { drawTitle(); return; }
+
+  // Starfield
+  ctx.fillStyle = '#111';
+  for (let i = 0; i < 60; i++) {
+    ctx.fillRect(((i * 173 + 5) % W), ((i * 113 + 7) % H), 1, 1);
+  }
+
+  drawHUD();
+  drawShields();
+
+  // Invaders
+  invaders.forEach(inv => {
+    if (!inv.alive) return;
+    drawSprite(SPRITES[inv.type], inv.frame, inv.x, inv.y, COLORS[inv.type]);
+  });
+
+  // UFO
+  if (ufo) drawUFO(ufo);
+
+  // Player
+  if (player.alive) {
+    if (deathTimer <= 0) drawPlayer(player.x, player.y);
   } else {
-    // 残機メッセージ
-    const msg = document.getElementById('life-lost-msg');
-    msg.textContent = `LIFE LOST！ 残り ${lives} 機`;
-    msg.style.opacity = '1';
-    setTimeout(() => { msg.style.opacity = '0'; }, 1800);
-    // 2秒間無敵
-    invincibleTimer = 2.0;
-    blinkTimer = 0;
+    // Death flash
+    if (deathTimer % 10 < 5) drawExplosion(player.x + player.w / 2, player.y + player.h / 2);
   }
+
+  // Bullets
+  if (playerBullet) drawBullet(playerBullet);
+  bullets.forEach(drawEnemyBullet);
+
+  if (gameState === 'gameover') drawGameOver();
+  if (gameState === 'win')      drawWin();
 }
 
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  update(dt);
-  pointLight.intensity = 1.8 + Math.sin(Date.now()*0.003)*0.4;
-  renderer.render(scene, camera);
+// ─── Game loop ─────────────────────────────────────────────────────────────
+function loop() {
+  frameCount++;
+  update();
+  draw();
+  requestAnimationFrame(loop);
 }
 
-showOverlay('3D SPACE INVADERS', '三次元インベーダー', 'START GAME');
-animate();
+// ─── Win → next level ──────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && gameState === 'win') {
+    AC.resume();
+    init(level + 1);
+  }
+});
+
+// ─── Start ─────────────────────────────────────────────────────────────────
+gameState = 'title';
+frameCount = 0;
+score = 0;
+loop();
 </script>
 </body>
 </html>
