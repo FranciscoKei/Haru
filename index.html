@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ガムダム・パックマン ～巡り合い宇宙～</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -87,7 +89,7 @@
       z-index: 200;
       cursor: pointer;
     }
-    #intro canvas { display: block; }
+    #intro canvas { display: block; width: 100%; height: 100%; }
     #intro .skip-hint {
       position: absolute; bottom: 30px;
       font-size: 12px; color: rgba(100,150,255,0.6);
@@ -1249,164 +1251,217 @@ function startGame() {
 }
 
 // ---- Intro animation ----
-const INTRO_DURATION = 5000;
 let introRaf = null;
-let introStartTime = null;
+let introTime = 0, introLast = null;
+const INTRO_END = 5.2; // seconds
 
-function drawNuSilhouette(ic, x, y) {
-  ic.save(); ic.translate(x, y);
-  ic.fillStyle = '#7cf';
-  // body
-  ic.fillRect(-12,-10,24,20);
-  // head
-  ic.fillRect(-7,-20,14,11);
-  // V-fin
-  ic.strokeStyle='#ff0'; ic.lineWidth=2;
-  ic.beginPath(); ic.moveTo(-5,-20); ic.lineTo(0,-30); ic.lineTo(5,-20); ic.stroke();
-  // funnels (back)
-  ic.fillStyle='#48a';
-  for(let i=0;i<5;i++) ic.fillRect(-20,-8+i*4,8,3);
-  // legs
-  ic.fillStyle='#68b';
-  ic.fillRect(-11,10,9,12); ic.fillRect(2,10,9,12);
-  // eye
-  ic.fillStyle='#0ff';
-  ic.beginPath(); ic.arc(3,-13,2.5,0,Math.PI*2); ic.fill();
+// Warp stars (shoot from center)
+const WSTARS = Array.from({length:260},()=>({
+  ang: Math.random()*Math.PI*2,
+  r:   Math.random()*0.3+0.02,
+  spd: 0.4+Math.random()*1.2,
+  b:   Math.random()
+}));
+
+// Full Gamdam drawing (ported from tetsu7778/gamdam5-maze, used with permission)
+function drawGamdam(ic, cx, cy, sc, alpha, t) {
+  ic.save();
+  ic.globalAlpha = alpha;
+  ic.translate(cx, cy);
+  ic.scale(sc, sc);
+  ic.translate(0, Math.sin(t*2.5)*3);
+
+  const W = ic.createLinearGradient(-80,-200,80,200);
+  W.addColorStop(0,'#ffffff'); W.addColorStop(1,'#c8d8f0');
+
+  // 脚部
+  ic.fillStyle='#dde8f8'; ic.fillRect(-38,90,30,70); ic.fillRect(8,90,30,70);
+  ic.fillStyle='#e8f0ff'; ic.fillRect(-42,145,38,22); ic.fillRect(4,145,38,22);
+  ic.fillStyle='#cc1a1a'; ic.fillRect(-34,118,26,12); ic.fillRect(12,118,26,12);
+
+  // 腰部
+  ic.fillStyle='#d0d8e8'; ic.fillRect(-14,85,10,12); ic.fillRect(4,85,10,12);
+  ic.fillStyle='#1a2a6a';
+  ic.beginPath(); ic.roundRect(-36,70,72,24,4); ic.fill();
+  ic.fillStyle='#f0c000'; ic.fillRect(-10,75,20,12);
+
+  // 胸部
+  ic.fillStyle=W; ic.beginPath(); ic.roundRect(-40,-10,80,82,6); ic.fill();
+  ic.fillStyle='#1a3a8f'; ic.beginPath(); ic.roundRect(-36,-6,72,38,4); ic.fill();
+  ic.fillStyle='#f0c000'; ic.fillRect(-12,8,24,18);
+  ic.fillStyle='#cc1a1a'; ic.fillRect(-32,4,14,22); ic.fillRect(18,4,14,22);
+
+  // 腹部
+  ic.fillStyle='#e0e8f4'; ic.fillRect(-28,36,56,30);
+
+  // 左腕
+  ic.fillStyle='#1a3a8f'; ic.beginPath(); ic.ellipse(-54,10,18,22,-0.2,0,Math.PI*2); ic.fill();
+  ic.fillStyle='#dde8f8'; ic.fillRect(-66,20,24,50);
+  ic.fillStyle='#1a2a6a'; ic.fillRect(-64,66,20,10);
+  ic.fillStyle='#dde8f8'; ic.fillRect(-64,72,22,38);
+  ic.fillStyle='#c0c8d8'; ic.beginPath(); ic.ellipse(-53,112,11,9,0,0,Math.PI*2); ic.fill();
+
+  // 右腕
+  ic.fillStyle='#1a3a8f'; ic.beginPath(); ic.ellipse(54,10,18,22,0.2,0,Math.PI*2); ic.fill();
+  ic.fillStyle='#dde8f8'; ic.fillRect(42,20,24,50);
+  ic.fillStyle='#1a2a6a'; ic.fillRect(44,66,20,10);
+  ic.fillStyle='#dde8f8'; ic.fillRect(42,72,22,38);
+  ic.fillStyle='#c0c8d8'; ic.beginPath(); ic.ellipse(53,112,11,9,0,0,Math.PI*2); ic.fill();
+
+  // ビームエフェクト
+  const sa = 0.7+0.3*Math.sin(t*8);
+  ic.save(); ic.globalAlpha = alpha*sa;
+  const sg = ic.createLinearGradient(53,112,53,-10);
+  sg.addColorStop(0,'#ff8800'); sg.addColorStop(0.3,'#ffee44'); sg.addColorStop(1,'rgba(255,255,255,0)');
+  ic.fillStyle=sg; ic.fillRect(48,-30,10,145);
+  ic.globalAlpha=alpha*sa*0.22; ic.fillRect(38,-30,30,145);
   ic.restore();
-}
 
-function drawSazabiSilhouette(ic, x, y) {
-  ic.save(); ic.translate(x, y);
-  // body
-  ic.fillStyle='#c33';
-  ic.fillRect(-16,-12,32,24);
-  // shoulders
-  ic.fillStyle='#a22';
-  ic.fillRect(-32,-10,16,16); ic.fillRect(16,-10,16,16);
-  // head dome
-  ic.fillStyle='#e44';
-  ic.beginPath(); ic.arc(0,-18,13,0,Math.PI*2); ic.fill();
-  // mono-eye
-  ic.fillStyle='#f00'; ic.beginPath(); ic.arc(5,-18,5,0,Math.PI*2); ic.fill();
-  ic.fillStyle='#ff0'; ic.beginPath(); ic.arc(5,-18,2.5,0,Math.PI*2); ic.fill();
-  // legs
-  ic.fillStyle='#922';
-  ic.fillRect(-13,12,11,13); ic.fillRect(2,12,11,13);
+  // 左肩アーマー
+  ic.save(); ic.translate(-82,20); ic.rotate(Math.sin(t*1.8)*0.04);
+  ic.fillStyle='#1a3a8f'; ic.beginPath(); ic.roundRect(-18,-40,36,90,8); ic.fill();
+  ic.fillStyle='#ffffff'; ic.fillRect(-14,-30,28,16); ic.fillRect(-14,-6,28,16);
+  ic.fillStyle='#cc1a1a'; ic.fillRect(-14,18,28,16);
+  ic.restore();
+
+  // 首
+  ic.fillStyle='#c8d0e0'; ic.fillRect(-10,-20,20,14);
+
+  // 頭部
+  ic.fillStyle='#1a3a8f'; ic.beginPath(); ic.roundRect(-32,-90,64,72,[8,8,2,2]); ic.fill();
+  ic.fillStyle='#e8f0ff'; ic.beginPath(); ic.roundRect(-22,-80,44,55,[4,4,2,2]); ic.fill();
+  ic.fillStyle='#cc1a1a'; ic.fillRect(-18,-72,36,14);
+
+  // スタビライザー発光
+  const ep = 0.8+0.2*Math.sin(t*5);
+  const eg = ic.createRadialGradient(0,-65,0,0,-65,10*ep);
+  eg.addColorStop(0,'#ffee00'); eg.addColorStop(0.5,'#ff8800'); eg.addColorStop(1,'rgba(255,100,0,0)');
+  ic.fillStyle=eg; ic.beginPath(); ic.ellipse(0,-65,10*ep,5,0,0,Math.PI*2); ic.fill();
+
+  // 顔・口
+  ic.fillStyle='#c0c8d8'; ic.beginPath(); ic.roundRect(-14,-28,28,12,3); ic.fill();
+
+  // Vアンテナ
+  ic.fillStyle='#f0c000';
+  ic.beginPath(); ic.moveTo(-4,-90); ic.lineTo(-22,-140); ic.lineTo(-14,-138); ic.lineTo(-2,-93); ic.closePath(); ic.fill();
+  ic.beginPath(); ic.moveTo(4,-90);  ic.lineTo(22,-140);  ic.lineTo(14,-138);  ic.lineTo(2,-93);  ic.closePath(); ic.fill();
+  ic.fillStyle='#cc1a1a';
+  ic.beginPath(); ic.moveTo(-3,-90); ic.lineTo(3,-90); ic.lineTo(1,-130); ic.lineTo(-1,-130); ic.closePath(); ic.fill();
+
+  // メガ粒子砲
+  ic.fillStyle='#888ca0'; ic.fillRect(-16,-8,8,20); ic.fillRect(8,-8,8,20);
+
+  // ビームサーベルエフェクト
+  const tg = 0.6+0.4*Math.sin(t*7+1);
+  ic.globalAlpha = alpha*tg*0.8;
+  const tg1 = ic.createRadialGradient(-12,14,0,-12,14,14);
+  tg1.addColorStop(0,'#88ddff'); tg1.addColorStop(1,'rgba(100,200,255,0)');
+  ic.fillStyle=tg1; ic.beginPath(); ic.ellipse(-12,14,10,14,0,0,Math.PI*2); ic.fill();
+  const tg2 = ic.createRadialGradient(12,14,0,12,14,14);
+  tg2.addColorStop(0,'#88ddff'); tg2.addColorStop(1,'rgba(100,200,255,0)');
+  ic.fillStyle=tg2; ic.beginPath(); ic.ellipse(12,14,10,14,0,0,Math.PI*2); ic.fill();
+
   ic.restore();
 }
 
 function runIntro() {
-  const introEl = document.getElementById('intro');
-  const ic = document.getElementById('introCanvas').getContext('2d');
-  const W = 640, H = 640;
-
-  const stars = Array.from({length:160},()=>({
-    x:Math.random()*W, y:Math.random()*H,
-    size:Math.random()*1.5+0.3, speed:Math.random()*0.8+0.2,
-    alpha:Math.random()
-  }));
+  const introCanvas = document.getElementById('introCanvas');
+  introCanvas.width  = window.innerWidth;
+  introCanvas.height = window.innerHeight;
+  window.addEventListener('resize', () => {
+    introCanvas.width  = window.innerWidth;
+    introCanvas.height = window.innerHeight;
+  });
+  const ic = introCanvas.getContext('2d');
+  introTime = 0; introLast = null;
 
   function frame(ts) {
-    if (!introStartTime) introStartTime = ts;
-    const elapsed = ts - introStartTime;
-    const t = Math.min(elapsed / INTRO_DURATION, 1);
+    if (!introLast) introLast = ts;
+    const dt = Math.min((ts - introLast) / 1000, 0.05);
+    introLast = ts;
+    introTime += dt;
+    const t = introTime;
+    const W = introCanvas.width, H = introCanvas.height;
+    const cx = W/2, cy = H/2;
 
-    // Background
-    ic.fillStyle = '#000008';
-    ic.fillRect(0,0,W,H);
+    ic.fillStyle = '#000008'; ic.fillRect(0,0,W,H);
 
-    // Stars drifting left
-    for (const s of stars) {
-      s.x -= s.speed;
-      if (s.x < 0) { s.x = W; s.y = Math.random()*H; }
-      s.alpha += (Math.random()-0.5)*0.04;
-      s.alpha = Math.max(0.1, Math.min(1, s.alpha));
-      ic.fillStyle = `rgba(200,220,255,${s.alpha})`;
-      ic.beginPath(); ic.arc(s.x, s.y, s.size, 0, Math.PI*2); ic.fill();
+    // ワープスター
+    const warp = Math.min(t/0.5,1) * Math.max(0, 1-(t-3.5)/1.2);
+    for (const s of WSTARS) {
+      const mn = Math.min(W,H);
+      const r0 = s.r*mn*0.08;
+      const r1 = s.r*mn*(0.08 + warp*1.1 + t*s.spd*0.18);
+      ic.strokeStyle = `rgba(${150+Math.floor(s.b*105)},${180+Math.floor(s.b*75)},255,${Math.min(1,t*3)*(0.3+s.b*0.7)})`;
+      ic.lineWidth = 0.8+s.b*1.2+warp*1.5;
+      ic.beginPath();
+      ic.moveTo(cx+Math.cos(s.ang)*r0, cy+Math.sin(s.ang)*r0);
+      ic.lineTo(cx+Math.cos(s.ang)*r1, cy+Math.sin(s.ang)*r1);
+      ic.stroke();
+    }
+
+    // 背景グロー
+    if (t > 0.8) {
+      const na = Math.min((t-0.8)/0.8, 1)*0.35;
+      const ng = ic.createRadialGradient(cx,cy,0,cx,cy,Math.min(W,H)*0.45);
+      ng.addColorStop(0, `rgba(30,60,160,${na})`);
+      ng.addColorStop(0.5,`rgba(10,20,80,${na*0.5})`);
+      ng.addColorStop(1,'transparent');
+      ic.fillStyle=ng; ic.beginPath(); ic.arc(cx,cy,Math.min(W,H)*0.45,0,Math.PI*2); ic.fill();
+    }
+
+    // ガムダム本体
+    if (t > 0.6) {
+      const ga = Math.min((t-0.6)/1.2, 1);
+      const fo = t > 4.2 ? Math.max(0, 1-(t-4.2)/0.8) : 1;
+      const gs = Math.min(W,H)/700*(0.7+0.3*Math.min((t-0.6)/1.5,1));
+      if (t > 3) {
+        const ag = Math.min((t-3)/0.8,1)*0.5*fo;
+        const au = ic.createRadialGradient(cx,cy-gs*20,0,cx,cy-gs*20,gs*220);
+        au.addColorStop(0,`rgba(100,200,255,${ag*0.6})`); au.addColorStop(1,'transparent');
+        ic.fillStyle=au; ic.beginPath(); ic.arc(cx,cy-gs*20,gs*220,0,Math.PI*2); ic.fill();
+      }
+      drawGamdam(ic, cx, cy-gs*10, gs, ga*fo, t);
     }
 
     ic.textAlign='center'; ic.textBaseline='middle';
 
-    // "U.C. 0093" (0.04-0.25, fade out 0.4-0.5)
-    if (t > 0.04) {
-      const a = Math.min(1,(t-0.04)/0.1) * (t>0.4 ? Math.max(0,1-(t-0.4)/0.1) : 1);
-      ic.globalAlpha = a;
-      ic.fillStyle='#8af'; ic.font='14px Courier New';
-      ic.fillText('U.C. 0093 ─ 宇宙世紀', W/2, 160);
-      ic.globalAlpha=1;
+    // "MOBILE SUIT GAMDAM III"
+    if (t > 1.5) {
+      const a = Math.min((t-1.5)/0.6,1) * (t>4.3?Math.max(0,1-(t-4.3)/0.7):1);
+      const gl = t<2.2 ? (Math.random()>0.7?Math.random()*6-3:0) : 0;
+      ic.font = `bold ${Math.max(12,Math.min(W*0.038,32))}px 'Orbitron',monospace`;
+      ic.fillStyle=`rgba(74,240,255,${a})`; ic.shadowColor='#4af0ff'; ic.shadowBlur=20*a;
+      ic.fillText('MOBILE SUIT GAMDAM III', cx+gl, H*0.14);
+      ic.shadowBlur=0;
     }
 
-    // "機動戦士ガムダム" (0.15-0.5, fade out 0.55-0.65)
-    if (t > 0.15) {
-      const a = Math.min(1,(t-0.15)/0.15) * (t>0.55 ? Math.max(0,1-(t-0.55)/0.1) : 1);
-      ic.globalAlpha = a;
-      ic.shadowColor='#0cf'; ic.shadowBlur=24;
-      ic.fillStyle='#0cf'; ic.font='bold 38px serif';
-      ic.fillText('機動戦士ガムダム', W/2, 240);
-      ic.shadowBlur=0; ic.globalAlpha=1;
+    // "めぐり宇宙"
+    if (t > 2) {
+      const a = Math.min((t-2)/0.7,1) * (t>4.3?Math.max(0,1-(t-4.3)/0.7):1);
+      ic.font = `bold ${Math.max(16,Math.min(W*0.055,44))}px 'Noto Sans JP',sans-serif`;
+      ic.fillStyle=`rgba(255,255,255,${a})`; ic.shadowColor='rgba(200,220,255,.8)'; ic.shadowBlur=16*a;
+      ic.fillText('めぐり宇宙', cx, H*0.22);
+      ic.shadowBlur=0;
     }
 
-    // "～ 巡り合い宇宙 ～" (0.32-0.55, fade out 0.6-0.7)
-    if (t > 0.32) {
-      const a = Math.min(1,(t-0.32)/0.12) * (t>0.6 ? Math.max(0,1-(t-0.6)/0.1) : 1);
-      ic.globalAlpha = a;
-      ic.fillStyle='#aaf'; ic.font='22px serif';
-      ic.fillText('～ 巡り合い宇宙 ～', W/2, 296);
-      ic.globalAlpha=1;
+    // 台詞
+    if (t > 3.5 && t < 4) {
+      const fa = Math.sin((t-3.5)/0.5*Math.PI);
+      ic.font = `bold ${Math.max(13,Math.min(W*0.033,26))}px 'Noto Sans JP',sans-serif`;
+      ic.fillStyle=`rgba(255,238,0,${fa*0.9})`; ic.shadowColor='#ffee00'; ic.shadowBlur=28*fa;
+      ic.fillText('「ニュータイプの力を見せてやる！」', cx, H*0.86);
+      ic.shadowBlur=0;
     }
 
-    // Mobile suit battle (t 0.44-0.88)
-    if (t > 0.44 && t < 0.9) {
-      const p = (t - 0.44) / 0.44;
-      const nuX = -60 + p * 760;
-      const saX = nuX - 110;
-      const py = 420;
-
-      // Thruster glow behind Sazabi
-      if (saX > -120) {
-        const grd = ic.createRadialGradient(saX-18,py,0,saX-18,py,22);
-        grd.addColorStop(0,'rgba(255,80,0,0.8)'); grd.addColorStop(1,'rgba(255,80,0,0)');
-        ic.fillStyle=grd; ic.beginPath(); ic.arc(saX-18,py,22,0,Math.PI*2); ic.fill();
-      }
-      // Thruster glow behind Nu
-      if (nuX > -60) {
-        const grd2 = ic.createRadialGradient(nuX-14,py,0,nuX-14,py,16);
-        grd2.addColorStop(0,'rgba(0,180,255,0.7)'); grd2.addColorStop(1,'rgba(0,180,255,0)');
-        ic.fillStyle=grd2; ic.beginPath(); ic.arc(nuX-14,py,16,0,Math.PI*2); ic.fill();
-      }
-
-      // Beam shot (after 60% of flight)
-      if (p > 0.55) {
-        const beamA = Math.abs(Math.sin((p-0.55)*Math.PI*8)) * 0.9;
-        ic.globalAlpha = beamA;
-        ic.strokeStyle='#0ff'; ic.lineWidth=3;
-        ic.shadowColor='#0ff'; ic.shadowBlur=8;
-        ic.beginPath(); ic.moveTo(nuX+25, py-8); ic.lineTo(saX-10, py+4); ic.stroke();
-        ic.shadowBlur=0; ic.globalAlpha=1;
-      }
-
-      drawSazabiSilhouette(ic, saX, py);
-      drawNuSilhouette(ic, nuX, py);
-    }
-
-    // Game title (0.72-0.88, fade out 0.9-1.0)
-    if (t > 0.72) {
-      const a = Math.min(1,(t-0.72)/0.1) * (t>0.9 ? Math.max(0,1-(t-0.9)/0.1) : 1);
-      ic.globalAlpha = a;
-      ic.shadowColor='#f80'; ic.shadowBlur=20;
-      ic.fillStyle='#ff0'; ic.font='bold 30px Courier New';
-      ic.fillText('ガムダム・パックマン', W/2, 530);
-      ic.shadowBlur=0; ic.globalAlpha=1;
-    }
-
-    // Final fade to black
-    if (t > 0.9) {
-      ic.globalAlpha = Math.min(1,(t-0.9)/0.1);
+    // フェードアウト
+    if (t > 4.5) {
+      ic.globalAlpha = Math.min((t-4.5)/0.7, 1);
       ic.fillStyle='#000'; ic.fillRect(0,0,W,H);
       ic.globalAlpha=1;
     }
 
-    if (elapsed < INTRO_DURATION) {
+    if (t < INTRO_END) {
       introRaf = requestAnimationFrame(frame);
     } else {
       endIntro();
