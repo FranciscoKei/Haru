@@ -3,695 +3,690 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ガンダム・パックマン ～巡り合い宇宙～</title>
+  <title>SPACE INVADERS</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: #000;
-      overflow: hidden;
-      font-family: 'Courier New', monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      color: #fff;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
     }
-    #hud {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 640px;
-      padding: 6px 10px;
-      background: rgba(0,0,40,0.9);
-      border: 1px solid #04f;
-      border-bottom: none;
-      font-size: 14px;
-      letter-spacing: 2px;
-    }
-    #hud .score-area { color: #0cf; text-shadow: 0 0 6px #0cf; }
-    #hud .lives-area { color: #f80; }
-    #hud .level-area { color: #0f8; text-shadow: 0 0 6px #0f8; }
     canvas {
       display: block;
-      border: 1px solid #04f;
-      box-shadow: 0 0 30px rgba(0,80,255,0.5);
-    }
-    #overlay {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: rgba(0,0,20,0.92);
-      color: #fff; text-align: center;
-      z-index: 10;
-    }
-    #overlay h1 {
-      font-size: 36px;
-      color: #0cf;
-      text-shadow: 0 0 16px #0cf, 0 0 32px #04f;
-      letter-spacing: 4px;
-      margin-bottom: 8px;
-    }
-    #overlay .subtitle {
-      font-size: 14px; color: #88f; margin-bottom: 30px; letter-spacing: 2px;
-    }
-    #overlay .legend {
-      font-size: 13px; line-height: 2.2; margin-bottom: 28px; color: #cce;
-      text-align: left;
-    }
-    #overlay .legend span { display: inline-block; width: 22px; text-align: center; }
-    #start-btn {
-      padding: 12px 40px; font-size: 18px; font-family: inherit;
-      background: transparent; border: 2px solid #0cf; color: #0cf;
-      letter-spacing: 4px; cursor: pointer;
-      text-shadow: 0 0 8px #0cf; box-shadow: 0 0 16px rgba(0,200,255,0.3);
-      transition: all 0.2s;
-    }
-    #start-btn:hover { background: rgba(0,200,255,0.15); }
-    #message {
-      position: fixed; left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 32px; font-weight: bold;
-      color: #ff0; text-shadow: 0 0 16px #f80;
-      letter-spacing: 4px;
-      pointer-events: none;
-      z-index: 20;
-      display: none;
+      image-rendering: pixelated;
     }
   </style>
 </head>
 <body>
-
-<div id="hud">
-  <div class="score-area">SCORE: <span id="scoreVal">0</span></div>
-  <div class="lives-area">AMURO: <span id="livesVal">❤❤❤</span></div>
-  <div class="level-area">STAGE: <span id="levelVal">1</span></div>
-</div>
-<canvas id="canvas" width="640" height="640"></canvas>
-<div id="message"></div>
-
-<div id="overlay">
-  <h1>ガンダム・パックマン</h1>
-  <div class="subtitle">～ 巡り合い宇宙 ～</div>
-  <div class="legend">
-    <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
-    <div><span>🔴</span> シャア (赤い彗星)　← 追跡者</div>
-    <div><span>🟠</span> ハマーン　← 追跡者</div>
-    <div><span>🔵</span> ギュネイ　← 追跡者</div>
-    <div><span>🟣</span> クェス　← 追跡者</div>
-    <div><span>⚡</span> Iフィールド　← パワーアップ</div>
-    <div><span>★</span> フラッシュ玉　← 得点アイテム</div>
-    <div>矢印キー または WASD で移動</div>
-  </div>
-  <button id="start-btn" onclick="startGame()">START MISSION</button>
-</div>
-
+<canvas id="c"></canvas>
 <script>
-const COLS = 32, ROWS = 32;
-const CELL = 20; // 640/32
+// ─── Canvas setup ──────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const W = 448, H = 512;
+canvas.width  = W;
+canvas.height = H;
 
-// ---- Map legend ----
-// 0 = open (dot)
-// 1 = wall
-// 2 = empty (no dot)
-// 3 = power pellet (Iフィールド)
-// 4 = bonus item location
+// Scale to fit viewport
+function resize() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width  = (W * s) + 'px';
+  canvas.style.height = (H * s) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
 
-// Generate a 32x32 maze
-function buildMaze() {
-  // Start with all walls
-  const m = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
+// ─── Web Audio ─────────────────────────────────────────────────────────────
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq, dur, type = 'square', vol = 0.15) {
+  const g = AC.createGain();
+  const o = AC.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.5, AC.currentTime + dur);
+  g.gain.setValueAtTime(vol, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime + dur);
+}
+function shootSound()   { beep(800, 0.1, 'square', 0.12); }
+function invHitSound()  { beep(200, 0.18, 'sawtooth', 0.2); }
+function playerHitSound(){ beep(80, 0.5, 'sawtooth', 0.3); }
+function ufoSound()     { beep(400 + Math.random()*200, 0.05, 'square', 0.1); }
 
-  // Recursive backtracker for maze generation (carve passages)
-  function carve(r, c) {
-    const dirs = [[0,2],[0,-2],[2,0],[-2,0]].sort(() => Math.random()-0.5);
-    for (const [dr, dc] of dirs) {
-      const nr = r+dr, nc = c+dc;
-      if (nr>0 && nr<ROWS-1 && nc>0 && nc<COLS-1 && m[nr][nc]===1) {
-        m[r+dr/2][c+dc/2] = 0;
-        m[nr][nc] = 0;
-        carve(nr, nc);
-      }
+// ─── Invader sprites (7×7 pixel art, 3 rows × 2 frames) ───────────────────
+//   Each sprite: array of 7 strings, each 7 chars ('1' = pixel)
+const SPRITES = {
+  // Row 0 – top row (alien A)
+  A: [
+    ['  111  ','  111  ',' 11111 ','1 111 1','1111111','1 1 1 1',' 1   1 '],
+    ['  111  ','  111  ',' 11111 ','1 111 1','1111111',' 1 1 1 ','1     1'],
+  ],
+  // Row 1 – middle (alien B)
+  B: [
+    [' 1   1 ','  1 1  ',' 11111 ','11 1 11','1111111','1111111','1     1'],
+    [' 1   1 ','1  1  1','111111 ','11 1 11','1111111',' 1   1 ','1 1 1 1'],
+  ],
+  // Row 2 – bottom (alien C)
+  C: [
+    ['   1   ','  111  ',' 11111 ','11 1 11','1111111','1 111 1','  1 1  '],
+    ['   1   ','  111  ',' 11111 ','11 1 11','1111111','  1 1  ','1 1 1 1'],
+  ],
+};
+
+const COLORS = { A: '#f55', B: '#ff0', C: '#0f0' };
+const SP = 13; // sprite display size (pixels)
+
+// ─── Game state ────────────────────────────────────────────────────────────
+let score, hiScore = 0, lives, level;
+let invaders, bullets, playerBullet, shields;
+let player, ufoBullets;
+let ufo;
+let invDir, invStep, invDropRemaining, invMoveTimer, invMoveInterval;
+let invFrame, frameCount;
+let gameState; // 'title' | 'playing' | 'dead' | 'gameover' | 'win'
+let deathTimer;
+let marchFreqs, marchIdx;
+
+// ─── Shield pixel map (22×16) ──────────────────────────────────────────────
+const SHIELD_SHAPE = [
+  '0000011111111111100000',
+  '0001111111111111111000',
+  '0011111111111111111100',
+  '0111111111111111111110',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111111111111111111111',
+  '1111110000000011111111',
+  '1111100000000001111111',
+  '1111000000000000111111',
+  '1110000000000000011111',
+  '1100000000000000001111',
+];
+
+function makeShield(x, y) {
+  const pixels = [];
+  for (let r = 0; r < SHIELD_SHAPE.length; r++) {
+    for (let c = 0; c < SHIELD_SHAPE[r].length; c++) {
+      if (SHIELD_SHAPE[r][c] === '1') pixels.push({x: x + c*2, y: y + r*2});
     }
   }
-  // Carve from (1,1)
-  m[1][1] = 0;
-  carve(1,1);
-
-  // Open border to make wrapping work naturally, keep outer wall
-  // Place power pellets in 4 corners area
-  const corners = [[1,1],[1,COLS-2],[ROWS-2,1],[ROWS-2,COLS-2]];
-  for (const [r,c] of corners) m[r][c] = 3;
-
-  // Ghost house in center
-  const cr = Math.floor(ROWS/2), cc = Math.floor(COLS/2);
-  for (let dr=-2; dr<=2; dr++)
-    for (let dc=-3; dc<=3; dc++) {
-      if (dr===-2||dr===2) m[cr+dr][cc+dc]=1;
-      else if (dc===-3||dc===3) m[cr+dr][cc+dc]=1;
-      else m[cr+dr][cc+dc]=2;
-    }
-  // Ghost house entrance
-  m[cr-2][cc]=0; m[cr-2][cc-1]=0; m[cr-2][cc+1]=0;
-
-  // Place bonus items
-  const bonusSpots = [];
-  for (let i=0; i<8; i++) {
-    let r,c;
-    do { r=1+Math.floor(Math.random()*(ROWS-2)); c=1+Math.floor(Math.random()*(COLS-2)); }
-    while (m[r][c]!==0);
-    m[r][c]=4;
-    bonusSpots.push([r,c]);
-  }
-
-  return m;
+  return pixels;
 }
 
-// ---- Game state ----
-let maze, dots, state, score, lives, level;
-let amuro, ghosts;
-let frightTimer, bonusTimer, bonusPos;
-let animFrame;
-let lastTime = 0;
-let gameRunning = false;
-
-const GHOST_NAMES = ['シャア','ハマーン','ギュネイ','クェス'];
-const GHOST_COLORS = ['#f33','#f82','#44f','#a4f'];
-const GHOST_EMOJIS = ['🔴','🟠','🔵','🟣'];
-// fright color
-const FRIGHT_COLOR = '#048';
-const FRIGHT_FLASH = '#08f';
-
-function initGame() {
-  maze = buildMaze();
-  // Count dots
-  dots = 0;
-  for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(maze[r][c]===0||maze[r][c]===4) dots++;
-
-  score = score||0;
+// ─── Init / reset ──────────────────────────────────────────────────────────
+function init(lvl = 1) {
+  level = lvl;
+  score = lvl === 1 ? 0 : score;
   lives = 3;
-  level = level||1;
-  frightTimer = 0;
-  bonusTimer = 0;
-  bonusPos = null;
+  frameCount = 0;
+  invFrame = 0;
+  bullets = [];
+  ufoBullets = [];
+  playerBullet = null;
+  ufo = null;
 
-  // Amuro starts at (1,1)
-  amuro = { r:1, c:1, dr:0, dc:0, nextDr:0, nextDc:1, moveTimer:0, speed:120, alive:true, invTimer:0 };
+  player = { x: W / 2 - 8, y: H - 40, w: 26, h: 12, alive: true };
 
-  const cr = Math.floor(ROWS/2), cc = Math.floor(COLS/2);
-  ghosts = GHOST_NAMES.map((name,i) => ({
-    name, color: GHOST_COLORS[i], emoji: GHOST_EMOJIS[i],
-    r: cr + (i%2===0?0:1), c: cc + (i<2?0:1),
-    dr:0, dc: i%2===0?1:-1,
-    moveTimer:0, speed: 150+i*20,
-    fright:false, eaten:false,
-    exitTimer: i*60, inHouse: true
-  }));
-
-  updateHUD();
-}
-
-function updateHUD() {
-  document.getElementById('scoreVal').textContent = score;
-  document.getElementById('livesVal').textContent = '❤'.repeat(lives);
-  document.getElementById('levelVal').textContent = level;
-}
-
-// ---- Pathfinding helpers ----
-function isOpen(r,c) {
-  r = (r+ROWS)%ROWS; c = (c+COLS)%COLS;
-  return maze[r][c] !== 1;
-}
-
-function manhattanDist(r1,c1,r2,c2) {
-  return Math.abs(r1-r2)+Math.abs(c1-c2);
-}
-
-// ---- Ghost AI ----
-function ghostAI(g) {
-  if (g.inHouse) return;
-  const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
-  // Current facing
-  const rev = [-g.dr, -g.dc];
-
-  let best = null, bestScore = Infinity;
-  for (const [dr,dc] of dirs) {
-    if (dr===rev[0] && dc===rev[1]) continue; // no reverse
-    const nr = (g.r+dr+ROWS)%ROWS, nc = (g.c+dc+COLS)%COLS;
-    if (!isOpen(nr,nc)) continue;
-    let sc;
-    if (g.fright) {
-      sc = -manhattanDist(nr,nc,amuro.r,amuro.c) + Math.random()*8;
-    } else {
-      // target is amuro
-      sc = manhattanDist(nr,nc,amuro.r,amuro.c);
-      // add some randomness based on ghost index
-      sc += (Math.random()-0.5)*4;
+  // 5 columns × 11 rows isn't classic; classic is 11 cols × 5 rows
+  const cols = 11, rows = 5;
+  const startX = 24, startY = 80;
+  const xGap = 36, yGap = 28;
+  invaders = [];
+  for (let r = 0; r < rows; r++) {
+    const type = r === 0 ? 'C' : r <= 2 ? 'B' : 'A';
+    for (let c = 0; c < cols; c++) {
+      invaders.push({
+        x: startX + c * xGap,
+        y: startY + r * yGap,
+        type,
+        alive: true,
+        frame: 0,
+      });
     }
-    if (sc < bestScore) { bestScore=sc; best=[dr,dc]; }
   }
-  if (!best) {
-    // reverse if stuck
-    const nr=(g.r+rev[0]+ROWS)%ROWS, nc=(g.c+rev[1]+COLS)%COLS;
-    if(isOpen(nr,nc)) best=rev; else best=[0,0];
-  }
-  g.dr=best[0]; g.dc=best[1];
-  g.r=(g.r+g.dr+ROWS)%ROWS; g.c=(g.c+g.dc+COLS)%COLS;
+
+  invDir = 1;
+  invStep = 2 + level;
+  invDropRemaining = 0;
+  invMoveTimer = 0;
+  invMoveInterval = 50; // frames between moves; shrinks as invaders die
+
+  marchFreqs = [160, 130, 100, 80];
+  marchIdx = 0;
+
+  shields = [];
+  const shieldXs = [44, 142, 242, 340];
+  shieldXs.forEach(sx => shields.push(...makeShield(sx, H - 110)));
+
+  gameState = 'playing';
+  deathTimer = 0;
 }
 
-// ---- Draw functions ----
-const WALL_COLOR = '#113a6e';
-const WALL_GLOW = '#1a5aad';
+// ─── Input ─────────────────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+  if (gameState === 'title' && e.code === 'Space') {
+    AC.resume();
+    init(1);
+  }
+  if ((gameState === 'gameover' || gameState === 'win') && e.code === 'Space') {
+    AC.resume();
+    init(1);
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-function drawCell(r, c) {
-  const x = c*CELL, y = r*CELL;
-  const v = maze[r][c];
+// Mobile touch
+let touchStartX = null;
+canvas.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  AC.resume();
+  if (gameState === 'title' || gameState === 'gameover' || gameState === 'win') {
+    init(1); return;
+  }
+  if (gameState === 'playing' && player.alive) fireBullet();
+}, {passive: false});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!touchStartX) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  const scale = W / canvas.getBoundingClientRect().width;
+  player.x += dx * scale;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
+  touchStartX = e.touches[0].clientX;
+}, {passive: false});
 
-  if (v===1) {
-    ctx.fillStyle = WALL_COLOR;
-    ctx.fillRect(x,y,CELL,CELL);
-    // Draw inner glow border
-    ctx.strokeStyle = WALL_GLOW;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x+1,y+1,CELL-2,CELL-2);
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function aliveInvaders() { return invaders.filter(i => i.alive); }
+
+function fireBullet() {
+  if (playerBullet) return;
+  playerBullet = { x: player.x + player.w / 2, y: player.y - 4, w: 2, h: 10 };
+  shootSound();
+}
+
+function invaderFire() {
+  const alive = aliveInvaders();
+  if (!alive.length) return;
+  // Pick a random invader from the bottom of each column
+  const cols = {};
+  alive.forEach(inv => {
+    const col = Math.round(inv.x / 36);
+    if (!cols[col] || inv.y > cols[col].y) cols[col] = inv;
+  });
+  const shooters = Object.values(cols);
+  const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  bullets.push({ x: shooter.x + SP / 2, y: shooter.y + SP + 2, w: 2, h: 10, phase: 0 });
+}
+
+function rectHit(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// ─── Update ────────────────────────────────────────────────────────────────
+let lastShot = 0;
+let ufoTimer = 0;
+let invFireTimer = 0;
+
+function update() {
+  if (gameState !== 'playing') return;
+  frameCount++;
+
+  if (!player.alive) {
+    deathTimer--;
+    if (deathTimer <= 0) {
+      if (lives <= 0) { gameState = 'gameover'; return; }
+      player.alive = true;
+      playerBullet = null;
+      bullets = [];
+    }
     return;
   }
 
-  // Floor
-  ctx.fillStyle = '#000614';
-  ctx.fillRect(x,y,CELL,CELL);
+  // ── Player movement ──
+  const speed = 3;
+  if (keys['ArrowLeft']  || keys['KeyA']) player.x -= speed;
+  if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
+  player.x = Math.max(0, Math.min(W - player.w, player.x));
 
-  if (v===0) {
-    // Small dot
-    ctx.fillStyle = '#8af';
-    ctx.beginPath();
-    ctx.arc(x+CELL/2, y+CELL/2, 2, 0, Math.PI*2);
-    ctx.fill();
-  } else if (v===3) {
-    // Power pellet - Iフィールド (pulsing)
-    const pulse = 0.5 + 0.5*Math.sin(Date.now()/200);
-    const r2 = 4 + pulse*2;
-    const grd = ctx.createRadialGradient(x+CELL/2,y+CELL/2,0,x+CELL/2,y+CELL/2,r2+2);
-    grd.addColorStop(0,'#fff');
-    grd.addColorStop(0.4,'#0ef');
-    grd.addColorStop(1,'rgba(0,200,255,0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.arc(x+CELL/2, y+CELL/2, r2, 0, Math.PI*2);
-    ctx.fill();
-  } else if (v===4) {
-    // Bonus star
-    const t = Date.now()/300;
-    ctx.save();
-    ctx.translate(x+CELL/2, y+CELL/2);
-    ctx.rotate(t);
-    ctx.fillStyle = '#ff0';
-    ctx.font = '12px serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('★', 0, 0);
-    ctx.restore();
+  // ── Shoot ──
+  if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && frameCount - lastShot > 8) {
+    fireBullet();
+    lastShot = frameCount;
+  }
+
+  // ── Player bullet ──
+  if (playerBullet) {
+    playerBullet.y -= 8;
+    if (playerBullet.y < 0) { playerBullet = null; }
+  }
+
+  // ── Invader march ──
+  invMoveTimer++;
+  const alive = aliveInvaders();
+  const dynInterval = Math.max(4, Math.floor(invMoveInterval * alive.length / 55));
+
+  if (invMoveTimer >= dynInterval) {
+    invMoveTimer = 0;
+    invFrame = 1 - invFrame;
+    alive.forEach(i => i.frame = invFrame);
+
+    // March sound
+    beep(marchFreqs[marchIdx % 4], 0.06, 'square', 0.1);
+    marchIdx++;
+
+    if (invDropRemaining > 0) {
+      // Dropping
+      alive.forEach(i => i.y += 4);
+      invDropRemaining -= 4;
+    } else {
+      // Horizontal
+      let hitEdge = false;
+      alive.forEach(i => {
+        i.x += invDir * invStep;
+        if (i.x <= 4 || i.x >= W - SP - 4) hitEdge = true;
+      });
+      if (hitEdge) {
+        invDir *= -1;
+        invDropRemaining = 16;
+      }
+    }
+
+    // Check if invaders reached the player row
+    if (alive.some(i => i.y + SP >= player.y)) {
+      gameState = 'gameover';
+      return;
+    }
+  }
+
+  // ── Invader fire ──
+  invFireTimer++;
+  const fireInterval = Math.max(20, 60 - level * 5);
+  if (invFireTimer >= fireInterval) {
+    invFireTimer = 0;
+    invaderFire();
+  }
+
+  // ── Enemy bullets ──
+  bullets.forEach(b => {
+    b.y += 4;
+    b.phase++;
+    // Zigzag
+    b.x += Math.sin(b.phase * 0.4) * 1.5;
+  });
+  bullets = bullets.filter(b => b.y < H);
+
+  // ── UFO ──
+  ufoTimer++;
+  if (!ufo && ufoTimer > 600 + Math.random() * 600) {
+    ufoTimer = 0;
+    ufo = { x: ufoDir() === 1 ? -40 : W + 40, y: 36, dir: ufoDir(), alive: true, flashTimer: 0 };
+  }
+  function ufoDir() { return Math.random() < 0.5 ? 1 : -1; }
+  if (ufo) {
+    ufo.x += ufo.dir * 2;
+    if (ufoTimer % 3 === 0) ufoSound();
+    if (ufo.x < -60 || ufo.x > W + 60) ufo = null;
+    if (ufo && ufo.flashTimer > 0) {
+      ufo.flashTimer--;
+      if (ufo.flashTimer <= 0) ufo = null;
+    }
+  }
+
+  // ── Collisions: player bullet → invaders ──
+  if (playerBullet) {
+    for (let i = 0; i < invaders.length; i++) {
+      const inv = invaders[i];
+      if (!inv.alive) continue;
+      if (rectHit(playerBullet.x, playerBullet.y, playerBullet.w, playerBullet.h,
+                  inv.x, inv.y, SP, SP)) {
+        inv.alive = false;
+        playerBullet = null;
+        const pts = inv.type === 'C' ? 30 : inv.type === 'B' ? 20 : 10;
+        score += pts;
+        invHitSound();
+        break;
+      }
+    }
+  }
+
+  // ── Collisions: player bullet → UFO ──
+  if (playerBullet && ufo && !ufo.flashTimer) {
+    if (rectHit(playerBullet.x, playerBullet.y, playerBullet.w, playerBullet.h,
+                ufo.x, ufo.y, 36, 12)) {
+      const bonus = (Math.floor(Math.random() * 6) + 1) * 50;
+      score += bonus;
+      ufo.score = bonus;
+      ufo.flashTimer = 60;
+      playerBullet = null;
+      beep(1200, 0.3, 'sawtooth', 0.2);
+    }
+  }
+
+  // ── Collisions: player bullet → shields ──
+  if (playerBullet) {
+    for (let i = shields.length - 1; i >= 0; i--) {
+      const p = shields[i];
+      if (rectHit(playerBullet.x, playerBullet.y, 2, 10, p.x, p.y, 2, 2)) {
+        shields.splice(i, 1);
+        playerBullet = null;
+        break;
+      }
+    }
+  }
+
+  // ── Collisions: enemy bullets → shields ──
+  for (let bi = bullets.length - 1; bi >= 0; bi--) {
+    const b = bullets[bi];
+    let hit = false;
+    for (let si = shields.length - 1; si >= 0; si--) {
+      const p = shields[si];
+      if (rectHit(b.x, b.y, b.w, b.h, p.x, p.y, 2, 2)) {
+        // Destroy a cluster of shield pixels
+        const cx = p.x, cy = p.y;
+        for (let k = shields.length - 1; k >= 0; k--) {
+          const d = Math.hypot(shields[k].x - cx, shields[k].y - cy);
+          if (d < 6) shields.splice(k, 1);
+        }
+        hit = true;
+        break;
+      }
+    }
+    if (hit) { bullets.splice(bi, 1); continue; }
+  }
+
+  // ── Collisions: enemy bullets → player ──
+  for (let bi = bullets.length - 1; bi >= 0; bi--) {
+    const b = bullets[bi];
+    if (rectHit(b.x, b.y, b.w, b.h, player.x, player.y, player.w, player.h)) {
+      bullets.splice(bi, 1);
+      lives--;
+      player.alive = false;
+      deathTimer = 90;
+      playerBullet = null;
+      playerHitSound();
+      break;
+    }
+  }
+
+  // ── Win condition ──
+  if (aliveInvaders().length === 0) {
+    gameState = 'win';
+    if (score > hiScore) hiScore = score;
   }
 }
 
-function drawAmuro() {
-  const a = amuro;
-  const px = a.c*CELL + CELL/2;
-  const py = a.r*CELL + CELL/2;
+// ─── Draw helpers ──────────────────────────────────────────────────────────
+function drawSprite(sprite, frame, x, y, color) {
+  const rows = sprite[frame];
+  const px = 2;
+  ctx.fillStyle = color;
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      if (rows[r][c] === '1') {
+        ctx.fillRect(Math.round(x + c * px), Math.round(y + r * px), px, px);
+      }
+    }
+  }
+}
 
-  // Invisible flash when invincible
-  if (a.invTimer>0 && Math.floor(a.invTimer/6)%2===0) return;
+function drawPlayer(x, y) {
+  ctx.fillStyle = '#0f0';
+  // Base
+  ctx.fillRect(x, y + 8, 26, 4);
+  // Body
+  ctx.fillRect(x + 4, y + 4, 18, 4);
+  // Cabin
+  ctx.fillRect(x + 10, y, 6, 4);
+  // Cannon
+  ctx.fillRect(x + 12, y - 4, 2, 4);
+}
 
-  ctx.save();
-  ctx.translate(px, py);
+function drawBullet(b) {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+}
 
-  // Amuro = RX-78 Gundam symbol / stylized mecha head
-  const t = Date.now();
-
-  // Body glow
-  const grd = ctx.createRadialGradient(0,0,2,0,0,CELL*0.55);
-  grd.addColorStop(0,'rgba(100,180,255,0.6)');
-  grd.addColorStop(1,'rgba(0,50,200,0)');
-  ctx.fillStyle = grd;
-  ctx.beginPath();
-  ctx.arc(0,0,CELL*0.55,0,Math.PI*2);
-  ctx.fill();
-
-  // Draw Pacman-style mouth for RX-78
-  const mouthAngle = Math.PI/5 * (0.5 + 0.5*Math.sin(t/120));
-  let angle = 0;
-  if (a.dc===1) angle=0;
-  else if (a.dc===-1) angle=Math.PI;
-  else if (a.dr===1) angle=Math.PI/2;
-  else if (a.dr===-1) angle=-Math.PI/2;
-
-  ctx.fillStyle = '#7cf';
-  ctx.beginPath();
-  ctx.moveTo(0,0);
-  ctx.arc(0,0,CELL*0.42,angle+mouthAngle, angle+Math.PI*2-mouthAngle);
-  ctx.closePath();
-  ctx.fill();
-
-  // V-fin antenna
-  ctx.strokeStyle = '#ff0';
+function drawEnemyBullet(b) {
+  // Zigzag / lightning bolt
+  ctx.strokeStyle = '#f80';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(-3,-CELL*0.3);
-  ctx.lineTo(0,-CELL*0.5);
-  ctx.lineTo(3,-CELL*0.3);
+  const segs = 4;
+  const segH = b.h / segs;
+  for (let i = 0; i <= segs; i++) {
+    const bx = b.x + (i % 2 === 0 ? 0 : 3);
+    const by = b.y + i * segH;
+    i === 0 ? ctx.moveTo(bx, by) : ctx.lineTo(bx, by);
+  }
   ctx.stroke();
-
-  // Eyes
-  ctx.fillStyle = '#0ff';
-  ctx.beginPath();
-  ctx.arc(-3, -2, 2, 0, Math.PI*2);
-  ctx.arc(3, -2, 2, 0, Math.PI*2);
-  ctx.fill();
-
-  ctx.restore();
 }
 
-function drawGhost(g) {
-  const px = g.c*CELL + CELL/2;
-  const py = g.r*CELL + CELL/2;
-
-  ctx.save();
-  ctx.translate(px, py);
-
-  const t = Date.now();
-
-  if (g.fright) {
-    const flash = frightTimer < 120 && Math.floor(t/200)%2===0;
-    const col = flash ? FRIGHT_FLASH : FRIGHT_COLOR;
-    // Frightened = Gelgoog or Zaku ghost shape
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(0, -1, CELL*0.38, Math.PI, 0);
-    // wavy bottom
-    const w=CELL*0.38;
-    ctx.lineTo(w,CELL*0.28);
-    for(let i=0;i<3;i++){
-      ctx.quadraticCurveTo(w-(i+0.5)*w*2/3, CELL*0.42, w-(i+1)*w*2/3, CELL*0.28);
+function drawUFO(u) {
+  if (u.flashTimer > 0) {
+    if (u.flashTimer % 8 < 4) {
+      ctx.fillStyle = '#ff0';
+      ctx.font = 'bold 12px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(u.score, u.x + 18, u.y + 8);
     }
-    ctx.lineTo(-w, CELL*0.28);
-    ctx.closePath();
-    ctx.fill();
-    // scared face
-    ctx.strokeStyle = '#fff'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(-5,2); ctx.lineTo(5,2); ctx.stroke();
-    ctx.fillStyle='#fff';
-    ctx.fillRect(-6,1,3,2); ctx.fillRect(0,1,3,2);
-  } else {
-    // Each ghost = Zeon mobile suit variant
-    const col = g.color;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(0,-1,CELL*0.38, Math.PI,0);
-    const w=CELL*0.38;
-    ctx.lineTo(w,CELL*0.28);
-    for(let i=0;i<3;i++){
-      ctx.quadraticCurveTo(w-(i+0.5)*w*2/3,CELL*0.42,w-(i+1)*w*2/3,CELL*0.28);
-    }
-    ctx.lineTo(-w,CELL*0.28);
-    ctx.closePath();
-    ctx.fill();
-    // Mono eye (Zeon style!)
-    const eyeX = g.dc!==0 ? g.dc*4 : 0;
-    ctx.fillStyle='#f00';
-    ctx.beginPath();
-    ctx.arc(eyeX, -2, 4, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle='#ff0';
-    ctx.beginPath();
-    ctx.arc(eyeX, -2, 2, 0, Math.PI*2);
-    ctx.fill();
-
-    // Char specific: add spikes for シャア
-    if (g.name==='シャア') {
-      ctx.strokeStyle='#f66'; ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(-w*0.6,-CELL*0.2);
-      ctx.lineTo(-w*0.6,-CELL*0.5);
-      ctx.moveTo(0,-CELL*0.38);
-      ctx.lineTo(0,-CELL*0.6);
-      ctx.moveTo(w*0.6,-CELL*0.2);
-      ctx.lineTo(w*0.6,-CELL*0.5);
-      ctx.stroke();
-    }
+    return;
   }
+  ctx.fillStyle = '#f0f';
+  // Saucer body
+  ctx.beginPath();
+  ctx.ellipse(u.x + 18, u.y + 8, 18, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Dome
+  ctx.beginPath();
+  ctx.ellipse(u.x + 18, u.y + 4, 9, 5, 0, Math.PI, 0);
+  ctx.fill();
+  // Windows
+  ctx.fillStyle = '#f8f';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(u.x + 10 + i * 8, u.y + 8, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
-  ctx.restore();
+function drawShields() {
+  ctx.fillStyle = '#0f0';
+  shields.forEach(p => ctx.fillRect(p.x, p.y, 2, 2));
+}
+
+function drawExplosion(x, y) {
+  ctx.fillStyle = '#f80';
+  ctx.font = 'bold 20px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('*', x, y);
 }
 
 function drawHUD() {
-  // already in DOM, but draw star field
+  ctx.fillStyle = '#0f0';
+  ctx.font = '14px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText('SCORE: ' + String(score).padStart(5, '0'), 10, 22);
+  ctx.textAlign = 'center';
+  ctx.fillText('HI-SCORE: ' + String(hiScore).padStart(5, '0'), W / 2, 22);
+  ctx.textAlign = 'right';
+  ctx.fillText('LIVES: ' + '▶'.repeat(Math.max(0, lives)), W - 10, 22);
+
+  // Level indicator
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0af';
+  ctx.fillText('LEVEL ' + level, W - 10, 40);
+
+  // Bottom line
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H - 22);
+  ctx.lineTo(W, H - 22);
+  ctx.stroke();
 }
 
-// Star field
-const STARS = Array.from({length:80},()=>({
-  x:Math.random()*640, y:Math.random()*640,
-  size:Math.random()*1.5+0.3,
-  alpha:Math.random()
-}));
+function drawTitle() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
 
-function drawStars() {
-  for (const s of STARS) {
-    s.alpha += (Math.random()-0.5)*0.04;
-    s.alpha = Math.max(0.1, Math.min(1, s.alpha));
-    ctx.fillStyle=`rgba(180,220,255,${s.alpha})`;
-    ctx.beginPath();
-    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
-    ctx.fill();
+  // Starfield
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 80; i++) {
+    const sx = ((i * 137 + 31) % W);
+    const sy = ((i * 97  + 17) % H);
+    ctx.fillRect(sx, sy, 1, 1);
   }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0ff';
+  ctx.font = 'bold 36px Courier New';
+  ctx.fillText('SPACE', W/2, 110);
+  ctx.fillText('INVADERS', W/2, 150);
+
+  // Sample invaders
+  const demo = [
+    {type:'C', x: W/2 - 100, y: 190},
+    {type:'B', x: W/2 - 40,  y: 190},
+    {type:'A', x: W/2 + 20,  y: 190},
+  ];
+  demo.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+
+  ctx.fillStyle = '#0f0';
+  ctx.font = '12px Courier New';
+  ctx.fillText('= 10 PTS', W/2 - 60, 225);
+
+  const demo2 = [
+    {type:'B', x: W/2 - 100, y: 240},
+    {type:'A', x: W/2 - 40,  y: 240},
+  ];
+  demo2.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+  ctx.fillText('= 20 PTS', W/2 - 60, 276);
+
+  const demo3 = [{type:'C', x: W/2 - 100, y: 290}];
+  demo3.forEach(d => drawSprite(SPRITES[d.type], (frameCount >> 3) & 1, d.x, d.y, COLORS[d.type]));
+  ctx.fillText('= 30 PTS', W/2 - 60, 326);
+
+  ctx.fillStyle = '#f0f';
+  ctx.font = '12px Courier New';
+  ctx.fillText('UFO = ???  PTS', W/2, 360);
+
+  ctx.fillStyle = '#ff0';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE TO START', W/2, 420);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '11px Courier New';
+  ctx.fillText('← → MOVE   SPACE FIRE', W/2, 455);
+  ctx.fillText('(TOUCH: SWIPE + TAP)', W/2, 472);
 }
 
-function render() {
-  ctx.clearRect(0,0,640,640);
-  drawStars();
-
-  // Draw maze
-  for (let r=0;r<ROWS;r++)
-    for (let c=0;c<COLS;c++)
-      drawCell(r,c);
-
-  // Draw ghosts
-  for (const g of ghosts) drawGhost(g);
-
-  // Draw amuro
-  if (amuro.alive) drawAmuro();
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f00';
+  ctx.font = 'bold 40px Courier New';
+  ctx.fillText('GAME OVER', W/2, H/2 - 20);
+  ctx.fillStyle = '#ff0';
+  ctx.font = '16px Courier New';
+  ctx.fillText('SCORE: ' + score, W/2, H/2 + 20);
+  if (score >= hiScore) ctx.fillText('NEW HI-SCORE!', W/2, H/2 + 42);
+  ctx.fillStyle = '#fff';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE TO RETRY', W/2, H/2 + 80);
 }
 
-// ---- Game loop ----
-function gameLoop(ts) {
-  if (!gameRunning) return;
-  const dt = Math.min(ts - lastTime, 50);
-  lastTime = ts;
-
-  update(dt);
-  render();
-
-  animFrame = requestAnimationFrame(gameLoop);
+function drawWin() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0ff';
+  ctx.font = 'bold 32px Courier New';
+  ctx.fillText('STAGE CLEAR!', W/2, H/2 - 20);
+  ctx.fillStyle = '#ff0';
+  ctx.font = '16px Courier New';
+  ctx.fillText('SCORE: ' + score, W/2, H/2 + 20);
+  ctx.fillStyle = '#fff';
+  ctx.font = (frameCount % 60 < 40) ? '16px Courier New' : '14px Courier New';
+  ctx.fillText('PRESS SPACE FOR NEXT LEVEL', W/2, H/2 + 80);
 }
 
-let eatCombo = 0;
-const COMBO_SCORES = [200, 400, 800, 1600];
+// ─── Main draw ─────────────────────────────────────────────────────────────
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
 
-function update(dt) {
-  const a = amuro;
+  if (gameState === 'title') { drawTitle(); return; }
 
-  // Amuro movement
-  a.moveTimer += dt;
-  if (a.moveTimer >= a.speed) {
-    a.moveTimer = 0;
-    // Try next direction
-    const nr2 = (a.r+a.nextDr+ROWS)%ROWS, nc2 = (a.c+a.nextDc+COLS)%COLS;
-    if (isOpen(nr2,nc2)) { a.dr=a.nextDr; a.dc=a.nextDc; }
-    const nr = (a.r+a.dr+ROWS)%ROWS, nc = (a.c+a.dc+COLS)%COLS;
-    if (isOpen(nr,nc)) { a.r=nr; a.c=nc; }
-
-    // Eat dot
-    const cell = maze[a.r][a.c];
-    if (cell===0) {
-      maze[a.r][a.c]=2;
-      score+=10; dots--;
-      updateHUD();
-    } else if (cell===3) {
-      maze[a.r][a.c]=2;
-      score+=50; dots--;
-      frightTimer=480;
-      eatCombo=0;
-      for(const g of ghosts) { g.fright=true; g.eaten=false; }
-      updateHUD();
-      showMessage('Iフィールド発動!', 1200);
-    } else if (cell===4) {
-      maze[a.r][a.c]=2;
-      score+=200; dots--;
-      updateHUD();
-      showMessage('ボーナス +200', 800);
-    }
+  // Starfield
+  ctx.fillStyle = '#111';
+  for (let i = 0; i < 60; i++) {
+    ctx.fillRect(((i * 173 + 5) % W), ((i * 113 + 7) % H), 1, 1);
   }
 
-  // Fright timer
-  if (frightTimer>0) {
-    frightTimer -= dt/16.67;
-    if (frightTimer<=0) {
-      frightTimer=0;
-      for(const g of ghosts) { g.fright=false; }
-    }
-  }
+  drawHUD();
+  drawShields();
 
-  // Ghost movement
-  for (const g of ghosts) {
-    if (g.inHouse) {
-      g.exitTimer-=dt/16.67;
-      if (g.exitTimer<=0) {
-        g.inHouse=false;
-        g.r=Math.floor(ROWS/2)-2;
-        g.c=Math.floor(COLS/2);
-      }
-      continue;
-    }
-    g.moveTimer+=dt;
-    const spd = g.fright ? g.speed*1.6 : g.speed;
-    if (g.moveTimer>=spd) {
-      g.moveTimer=0;
-      ghostAI(g);
-    }
-  }
+  // Invaders
+  invaders.forEach(inv => {
+    if (!inv.alive) return;
+    drawSprite(SPRITES[inv.type], inv.frame, inv.x, inv.y, COLORS[inv.type]);
+  });
 
-  // Collision
-  if (a.invTimer>0) {
-    a.invTimer-=dt/16.67;
+  // UFO
+  if (ufo) drawUFO(ufo);
+
+  // Player
+  if (player.alive) {
+    if (deathTimer <= 0) drawPlayer(player.x, player.y);
   } else {
-    for (const g of ghosts) {
-      if (g.inHouse) continue;
-      if (g.r===a.r && g.c===a.c) {
-        if (g.fright && !g.eaten) {
-          g.eaten=true;
-          g.fright=false;
-          g.inHouse=true;
-          g.exitTimer=180;
-          g.r=Math.floor(ROWS/2); g.c=Math.floor(COLS/2);
-          const pts = COMBO_SCORES[Math.min(eatCombo,3)];
-          eatCombo++;
-          score+=pts;
-          updateHUD();
-          showMessage(`${g.name} 撃墜! +${pts}`, 1000);
-        } else if (!g.fright) {
-          // Amuro hit
-          lives--;
-          a.invTimer=200;
-          updateHUD();
-          if (lives<=0) {
-            gameOver();
-            return;
-          }
-          showMessage('機体大破!', 1200);
-        }
-      }
-    }
+    // Death flash
+    if (deathTimer % 10 < 5) drawExplosion(player.x + player.w / 2, player.y + player.h / 2);
   }
 
-  // Stage clear
-  if (dots<=0) {
-    level++;
-    stageCleared();
+  // Bullets
+  if (playerBullet) drawBullet(playerBullet);
+  bullets.forEach(drawEnemyBullet);
+
+  if (gameState === 'gameover') drawGameOver();
+  if (gameState === 'win')      drawWin();
+}
+
+// ─── Game loop ─────────────────────────────────────────────────────────────
+function loop() {
+  frameCount++;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ─── Win → next level ──────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && gameState === 'win') {
+    AC.resume();
+    init(level + 1);
   }
-}
-
-let msgTimeout;
-function showMessage(txt, dur) {
-  const el = document.getElementById('message');
-  el.textContent = txt;
-  el.style.display='block';
-  clearTimeout(msgTimeout);
-  msgTimeout = setTimeout(()=>{ el.style.display='none'; }, dur);
-}
-
-function stageCleared() {
-  gameRunning=false;
-  cancelAnimationFrame(animFrame);
-  showMessage('ステージクリア！', 2000);
-  setTimeout(()=>{
-    initGame();
-    updateHUD();
-    gameRunning=true;
-    lastTime=performance.now();
-    animFrame=requestAnimationFrame(gameLoop);
-  },2200);
-}
-
-function gameOver() {
-  gameRunning=false;
-  cancelAnimationFrame(animFrame);
-  const ov = document.getElementById('overlay');
-  ov.innerHTML = `
-    <h1>GAME OVER</h1>
-    <div class="subtitle">地球連邦軍、敗北...</div>
-    <div style="font-size:24px;color:#ff0;margin:20px 0">SCORE: ${score}</div>
-    <button id="start-btn" onclick="restartGame()">RETRY MISSION</button>
-  `;
-  ov.style.display='flex';
-}
-
-function restartGame() {
-  score=0; level=1;
-  document.getElementById('overlay').style.display='none';
-  initGame();
-  updateHUD();
-  gameRunning=true;
-  lastTime=performance.now();
-  animFrame=requestAnimationFrame(gameLoop);
-}
-
-function startGame() {
-  score=0; level=1;
-  document.getElementById('overlay').style.display='none';
-  initGame();
-  updateHUD();
-  gameRunning=true;
-  lastTime=performance.now();
-  animFrame=requestAnimationFrame(gameLoop);
-}
-
-// ---- Controls ----
-document.addEventListener('keydown', e => {
-  if (!gameRunning) return;
-  switch(e.key) {
-    case 'ArrowLeft':  case 'a': case 'A': amuro.nextDr=0; amuro.nextDc=-1; break;
-    case 'ArrowRight': case 'd': case 'D': amuro.nextDr=0; amuro.nextDc=1;  break;
-    case 'ArrowUp':    case 'w': case 'W': amuro.nextDr=-1; amuro.nextDc=0; break;
-    case 'ArrowDown':  case 's': case 'S': amuro.nextDr=1;  amuro.nextDc=0; break;
-  }
-  e.preventDefault();
 });
 
-// Touch support
-let touchStartX, touchStartY;
-canvas.addEventListener('touchstart', e=>{
-  touchStartX=e.touches[0].clientX;
-  touchStartY=e.touches[0].clientY;
-  e.preventDefault();
-},{passive:false});
-canvas.addEventListener('touchend', e=>{
-  if(!gameRunning) return;
-  const dx=e.changedTouches[0].clientX-touchStartX;
-  const dy=e.changedTouches[0].clientY-touchStartY;
-  if(Math.abs(dx)>Math.abs(dy)){
-    if(dx>0){amuro.nextDr=0;amuro.nextDc=1;}
-    else{amuro.nextDr=0;amuro.nextDc=-1;}
-  } else {
-    if(dy>0){amuro.nextDr=1;amuro.nextDc=0;}
-    else{amuro.nextDr=-1;amuro.nextDc=0;}
-  }
-  e.preventDefault();
-},{passive:false});
-
-// Initial render
-ctx.fillStyle='#000614';
-ctx.fillRect(0,0,640,640);
+// ─── Start ─────────────────────────────────────────────────────────────────
+gameState = 'title';
+frameCount = 0;
+score = 0;
+loop();
 </script>
 </body>
 </html>
