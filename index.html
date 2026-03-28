@@ -1364,6 +1364,93 @@ function drawGamdam(ic, cx, cy, sc, alpha, t) {
   ic.restore();
 }
 
+// ── オリジナルオープニングジングル ──
+let introSoundGain = null;
+
+function playIntroJingle() {
+  if (masterVol === 0) return;
+  const ac = getAudio();
+  const t0 = ac.currentTime + 0.1;
+
+  const master = ac.createGain();
+  master.gain.setValueAtTime(masterVol, t0);
+  master.gain.setValueAtTime(masterVol, t0 + 4.2);
+  master.gain.linearRampToValueAtTime(0, t0 + 5.1);
+  master.connect(ac.destination);
+  introSoundGain = master;
+
+  // ヘルパー：単音を生成
+  function note(freq, start, dur, type = 'sawtooth', vol = 0.13, detune = 0) {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    const lp = ac.createBiquadFilter();
+    o.type = type; o.frequency.value = freq; o.detune.value = detune;
+    lp.type = 'lowpass'; lp.frequency.value = 3200;
+    g.gain.setValueAtTime(0, t0 + start);
+    g.gain.linearRampToValueAtTime(vol, t0 + start + 0.04);
+    g.gain.setValueAtTime(vol, t0 + start + Math.max(0, dur - 0.06));
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur + 0.06);
+    o.connect(lp); lp.connect(g); g.connect(master);
+    o.start(t0 + start); o.stop(t0 + start + dur + 0.12);
+  }
+
+  // ── 宇宙的な空間パッド（ドローン） ──
+  [[65,0,5.0,0.07],[98,0.4,4.6,0.05],[130,0.8,4.2,0.04]].forEach(([f,s,d,v]) => {
+    note(f, s, d, 'sine', v);
+  });
+
+  // ── ワープ起動 上昇スウィープ ──
+  {
+    const o = ac.createOscillator(), g = ac.createGain();
+    const bp = ac.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(60, t0);
+    o.frequency.exponentialRampToValueAtTime(900, t0 + 0.9);
+    bp.type = 'bandpass'; bp.frequency.value = 350; bp.Q.value = 2.5;
+    g.gain.setValueAtTime(0.09, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
+    o.connect(bp); bp.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + 0.95);
+  }
+
+  // ── ファンファーレ（C5→E5→G5→C6） ──
+  [[523,0.55,0.14],[659,0.72,0.14],[784,0.90,0.16],[1047,1.10,0.45]].forEach(([f,s,d]) => {
+    note(f, s, d, 'sawtooth', 0.11);
+    note(f, s, d, 'sawtooth', 0.05, -7); // 厚みを出すデチューン
+  });
+
+  // ── オリジナルメロディー（8音） ──
+  // G4 A4 B4 D5 G5 E5 D5 G4
+  [
+    [392,1.65,0.24],[440,1.93,0.20],[494,2.17,0.20],
+    [587,2.42,0.34],[784,2.81,0.38],[659,3.24,0.23],
+    [587,3.52,0.20],[392,3.77,0.65],
+  ].forEach(([f,s,d]) => {
+    note(f, s, d, 'triangle', 0.10);
+    note(f, s, d, 'sine',     0.06); // サイン波とブレンドで温かみ
+  });
+
+  // ── ベースライン ──
+  [[98,1.65,0.50],[110,2.15,0.50],[123,2.65,0.50],[147,3.15,0.50],[196,3.65,0.55]].forEach(([f,s,d]) => {
+    note(f, s, d, 'sine', 0.17);
+  });
+
+  // ── インパクトノイズ（ドラム的打撃音） ──
+  [0.55, 1.10, 2.81].forEach(s => {
+    const sz = Math.floor(ac.sampleRate * 0.09);
+    const buf = ac.createBuffer(1, sz, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < sz; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / sz);
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.22, t0 + s);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + s + 0.18);
+    src.connect(lp); lp.connect(g); g.connect(master);
+    src.start(t0 + s);
+  });
+}
+
 function runIntro() {
   const introCanvas = document.getElementById('introCanvas');
   introCanvas.width  = window.innerWidth;
@@ -1374,6 +1461,7 @@ function runIntro() {
   });
   const ic = introCanvas.getContext('2d');
   introTime = 0; introLast = null;
+  playIntroJingle();
 
   function frame(ts) {
     if (!introLast) introLast = ts;
@@ -1473,6 +1561,12 @@ function runIntro() {
 function skipIntro() {
   if (!document.getElementById('intro').style.display ||
       document.getElementById('intro').style.display !== 'none') {
+    if (introSoundGain) {
+      const ac = getAudio();
+      introSoundGain.gain.cancelScheduledValues(ac.currentTime);
+      introSoundGain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.15);
+      introSoundGain = null;
+    }
     cancelAnimationFrame(introRaf);
     endIntro();
   }
