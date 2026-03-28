@@ -88,6 +88,40 @@
       border: 1px solid #04f;
       box-shadow: 0 0 30px rgba(0,80,255,0.5);
     }
+    /* タップしてスタート画面 */
+    #tap-start {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #000;
+      z-index: 300;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #tap-start .ts-title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(16px, 5vw, 28px);
+      color: #0cf;
+      text-shadow: 0 0 16px #0cf, 0 0 32px #04f;
+      letter-spacing: 4px;
+      margin-bottom: 12px;
+    }
+    #tap-start .ts-sub {
+      font-size: clamp(10px, 2.5vw, 13px);
+      color: #88f;
+      letter-spacing: 2px;
+      margin-bottom: 48px;
+    }
+    #tap-start .ts-hint {
+      font-size: clamp(13px, 3.5vw, 20px);
+      color: #aef;
+      letter-spacing: 3px;
+      animation: tsPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes tsPulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.25; }
+    }
     #overlay {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
@@ -165,7 +199,14 @@
   <div class="dp" id="dp-down"  ontouchstart="dpadDir(1,0)"  ontouchend="dpadEnd()">▼</div>
 </div>
 
-<div id="intro" onclick="skipIntro()">
+<!-- タップしてスタート（音声アンロック） -->
+<div id="tap-start" onclick="tapToStart()">
+  <div class="ts-title">GAMDAM PACMAN</div>
+  <div class="ts-sub">～ 巡り合い宇宙 ～</div>
+  <div class="ts-hint">▶ タップ / クリック してスタート ◀</div>
+</div>
+
+<div id="intro" onclick="skipIntro()" style="display:none">
   <canvas id="introCanvas" width="640" height="640"></canvas>
   <div class="skip-hint">クリック または ESC でスキップ</div>
 </div>
@@ -826,6 +867,8 @@ function setVolume(el) {
 }
 function getAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // モバイルではユーザー操作後でないとサスペンドされるので常にresumeを試みる
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
 function tone(freq, type, dur, vol=0.25, t0=0) {
@@ -1701,8 +1744,10 @@ function quitToTitle() {
 // ---- Controls ----
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    const ts = document.getElementById('tap-start');
     const intro = document.getElementById('intro');
-    if (intro.style.display !== 'none') { skipIntro(); }
+    if (ts.style.display !== 'none') { tapToStart(); }
+    else if (intro.style.display !== 'none') { skipIntro(); }
     else if (gameRunning) { quitToTitle(); }
     e.preventDefault(); return;
   }
@@ -1766,12 +1811,18 @@ function dpadEnd() {}
 window.addEventListener('resize', resizeGame);
 resizeGame();
 
+// タップしてスタート（音声アンロック）
+function tapToStart() {
+  document.getElementById('tap-start').style.display = 'none';
+  document.getElementById('intro').style.display = 'flex';
+  // ユーザー操作内でAudioContextを作成・resumeしてから再生
+  const ac = getAudio();
+  ac.resume().then(() => runIntro()).catch(() => runIntro());
+}
+
 // Initial render
 ctx.fillStyle='#000614';
 ctx.fillRect(0,0,640,640);
-
-// Start intro on load
-runIntro();
 </script>
 </body>
 </html>
