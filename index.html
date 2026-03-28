@@ -248,6 +248,27 @@ const GHOST_EMOJIS = ['🔴','🟠','🔵','🟣'];
 const FRIGHT_COLOR = '#048';
 const FRIGHT_FLASH = '#08f';
 
+// Find nearest open cell (value 0) to (r0,c0) via BFS
+function findOpen(r0, c0) {
+  if (maze[r0][c0] === 0) return [r0, c0];
+  const vis = new Uint8Array(ROWS * COLS);
+  const q = [[r0, c0]];
+  vis[r0*COLS+c0] = 1;
+  while (q.length) {
+    const [r, c] = q.shift();
+    for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+      const nr = r+dr, nc = c+dc;
+      if (nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+      const k = nr*COLS+nc;
+      if (vis[k]) continue;
+      vis[k] = 1;
+      if (maze[nr][nc] === 0) return [nr, nc];
+      q.push([nr, nc]);
+    }
+  }
+  return [r0, c0]; // fallback
+}
+
 function initGame() {
   maze = buildMaze();
   // Count dots and stars separately
@@ -264,8 +285,9 @@ function initGame() {
   bonusTimer = 0;
   bonusPos = null;
 
-  // Amuro starts at (1,1)
-  amuro = { r:1, c:1, dr:0, dc:0, nextDr:0, nextDc:1, moveTimer:0, speed:120, alive:true, invTimer:0 };
+  // Amuro starts at nearest open cell to (1,1)
+  const startPos = findOpen(1, 1);
+  amuro = { r:startPos[0], c:startPos[1], dr:0, dc:0, nextDr:0, nextDc:1, moveTimer:0, speed:120, alive:true, invTimer:0 };
 
   const cr = Math.floor(ROWS/2), cc = Math.floor(COLS/2);
   ghosts = GHOST_NAMES.map((name,i) => ({
