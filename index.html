@@ -55,6 +55,19 @@
       transition: opacity 0.4s; z-index: 5;
     }
 
+    #hit-flash {
+      position: fixed; inset: 0; background: rgba(255,0,0,0);
+      pointer-events: none; z-index: 8;
+      transition: background 0.08s;
+    }
+
+    #life-lost-msg {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 36px; color: #ff4444; text-shadow: 0 0 20px #ff0000;
+      letter-spacing: 4px; pointer-events: none; opacity: 0;
+      transition: opacity 0.3s; z-index: 7; white-space: nowrap;
+    }
+
     #mobile-controls {
       position: fixed; bottom: 20px; left: 0; width: 100%;
       display: none; justify-content: space-between; align-items: flex-end;
@@ -99,7 +112,11 @@
 </div>
 
 <!-- Wave announce -->
-<div id="wave-announce" id="wave-announce"></div>
+<div id="wave-announce"></div>
+
+<!-- Hit flash overlay -->
+<div id="hit-flash"></div>
+<div id="life-lost-msg"></div>
 
 <!-- Start / Game Over overlay -->
 <div id="overlay">
@@ -274,7 +291,7 @@ function makeEnemyMesh(row) {
 const COLS = 8, ROWS = 3;
 const PLAY_W = 18, PLAY_Z = 0;
 const ENEMY_SPACING_X = 2.6, ENEMY_SPACING_Y = 2.2;
-const BULLET_SPEED = 0.38, EBULLET_SPEED = 0.22;
+const BULLET_SPEED = 0.38, EBULLET_SPEED = 0.15;
 const PLAYER_SPEED = 0.15;
 const SHOOT_COOLDOWN = 300; // ms
 
@@ -292,6 +309,9 @@ let enemyMoveTimer = 0;
 let enemyShootTimer = 0;
 let playerMesh, playerLight;
 let waveAnnounceTimer = 0;
+let invincibleTimer = 0;    // 無敵時間（秒）
+let blinkTimer = 0;
+let shakeTimer = 0, shakeIntensity = 0;
 
 const keys = {};
 const mobileInput = { left: false, right: false, fire: false };
@@ -400,6 +420,7 @@ function initGame() {
   playerX = 0;
   enemyDir = 1; enemySpeed = 0.018 + (wave - 1) * 0.003;
   enemyDropZ = 0;
+  invincibleTimer = 0; blinkTimer = 0; shakeTimer = 0;
   createPlayer();
   createShields();
   createEnemies();
@@ -506,6 +527,20 @@ function update(dt) {
     }
   }
 
+  // ── Invincibility / blink / shake ──
+  if (invincibleTimer > 0) {
+    invincibleTimer -= dt;
+    blinkTimer += dt;
+    if (playerMesh) playerMesh.visible = Math.floor(blinkTimer * 10) % 2 === 0;
+    if (invincibleTimer <= 0 && playerMesh) playerMesh.visible = true;
+  }
+  if (shakeTimer > 0) {
+    shakeTimer -= dt;
+    const s = shakeIntensity * (shakeTimer / 0.4);
+    camera.position.x += (Math.random() - 0.5) * s;
+    camera.position.y += (Math.random() - 0.5) * s * 0.5;
+  }
+
   // ── Player movement ──
   const moveLeft  = keys['ArrowLeft']  || keys['KeyA'] || mobileInput.left;
   const moveRight = keys['ArrowRight'] || keys['KeyD'] || mobileInput.right;
@@ -574,7 +609,8 @@ function update(dt) {
       continue;
     }
     // vs player
-    if (dist2D(b.mesh.position, playerMesh.position) < 1.0 &&
+    if (invincibleTimer <= 0 &&
+        dist2D(b.mesh.position, playerMesh.position) < 1.0 &&
         Math.abs(b.mesh.position.z - playerMesh.position.z) < 0.8) {
       scene.remove(b.mesh);
       eBullets.splice(i, 1);
@@ -684,21 +720,33 @@ function update(dt) {
 }
 
 function hitPlayer() {
+  // 赤フラッシュ
+  const flash = document.getElementById('hit-flash');
+  flash.style.background = 'rgba(255,0,0,0.55)';
+  setTimeout(() => { flash.style.background = 'rgba(255,0,0,0)'; }, 120);
+
+  // カメラシェイク
+  shakeTimer = 0.4;
+  shakeIntensity = 0.6;
+
   spawnExplosion(playerMesh.position, 0x00ffff, true);
   lives--;
   updateHUD();
+
   if (lives <= 0) {
     state = 'gameover';
     scene.remove(playerMesh);
     setTimeout(() => showOverlay('GAME OVER', `SCORE: ${score}  WAVE: ${wave}`, 'PLAY AGAIN'), 1200);
   } else {
-    state = 'dead';
-    scene.remove(playerMesh);
-    setTimeout(() => {
-      playerX = 0;
-      createPlayer();
-      state = 'playing';
-    }, 1500);
+    // 残機メッセージ
+    const msg = document.getElementById('life-lost-msg');
+    msg.textContent = `LIFE LOST！ 残り ${lives} 機`;
+    msg.style.opacity = '1';
+    setTimeout(() => { msg.style.opacity = '0'; }, 1800);
+
+    // 2秒間の無敵時間
+    invincibleTimer = 2.0;
+    blinkTimer = 0;
   }
 }
 
