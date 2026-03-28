@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ガンダム・パックマン ～巡り合い宇宙～</title>
+  <title>ガムダム・パックマン ～巡り合い宇宙～</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -109,7 +109,7 @@
 </div>
 
 <div id="overlay" style="display:none">
-  <h1>ガンダム・パックマン</h1>
+  <h1>ガムダム・パックマン</h1>
   <div class="subtitle">～ 巡り合い宇宙 ～</div>
   <div class="legend">
     <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
@@ -345,7 +345,7 @@ function drawAmuro() {
   ctx.save();
   ctx.translate(px, py);
 
-  // Amuro = RX-78 Gundam symbol / stylized mecha head
+  // Amuro = RX-78 Gamdam symbol / stylized mecha head
   const t = Date.now();
 
   // Body glow
@@ -762,13 +762,13 @@ function runIntro() {
       ic.globalAlpha=1;
     }
 
-    // "機動戦士ガンダム" (0.15-0.5, fade out 0.55-0.65)
+    // "機動戦士ガムダム" (0.15-0.5, fade out 0.55-0.65)
     if (t > 0.15) {
       const a = Math.min(1,(t-0.15)/0.15) * (t>0.55 ? Math.max(0,1-(t-0.55)/0.1) : 1);
       ic.globalAlpha = a;
       ic.shadowColor='#0cf'; ic.shadowBlur=24;
       ic.fillStyle='#0cf'; ic.font='bold 38px serif';
-      ic.fillText('機動戦士ガンダム', W/2, 240);
+      ic.fillText('機動戦士ガムダム', W/2, 240);
       ic.shadowBlur=0; ic.globalAlpha=1;
     }
 
@@ -821,7 +821,7 @@ function runIntro() {
       ic.globalAlpha = a;
       ic.shadowColor='#f80'; ic.shadowBlur=20;
       ic.fillStyle='#ff0'; ic.font='bold 30px Courier New';
-      ic.fillText('ガンダム・パックマン', W/2, 530);
+      ic.fillText('ガムダム・パックマン', W/2, 530);
       ic.shadowBlur=0; ic.globalAlpha=1;
     }
 
@@ -860,7 +860,7 @@ function quitToTitle() {
   score = 0; level = 1;
   const ov = document.getElementById('overlay');
   ov.innerHTML = `
-    <h1>ガンダム・パックマン</h1>
+    <h1>ガムダム・パックマン</h1>
     <div class="subtitle">～ 巡り合い宇宙 ～</div>
     <div class="legend">
       <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
