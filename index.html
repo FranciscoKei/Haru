@@ -68,6 +68,19 @@
       transition: all 0.2s;
     }
     #start-btn:hover { background: rgba(0,200,255,0.15); }
+    #intro {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #000;
+      z-index: 200;
+      cursor: pointer;
+    }
+    #intro canvas { display: block; }
+    #intro .skip-hint {
+      position: absolute; bottom: 30px;
+      font-size: 12px; color: rgba(100,150,255,0.6);
+      letter-spacing: 2px; pointer-events: none;
+    }
     #message {
       position: fixed; left: 50%; top: 50%;
       transform: translate(-50%, -50%);
@@ -90,7 +103,12 @@
 <canvas id="canvas" width="640" height="640"></canvas>
 <div id="message"></div>
 
-<div id="overlay">
+<div id="intro" onclick="skipIntro()">
+  <canvas id="introCanvas" width="640" height="640"></canvas>
+  <div class="skip-hint">クリック または ESC でスキップ</div>
+</div>
+
+<div id="overlay" style="display:none">
   <h1>ガンダム・パックマン</h1>
   <div class="subtitle">～ 巡り合い宇宙 ～</div>
   <div class="legend">
@@ -656,8 +674,217 @@ function startGame() {
   animFrame=requestAnimationFrame(gameLoop);
 }
 
+// ---- Intro animation ----
+const INTRO_DURATION = 5000;
+let introRaf = null;
+let introStartTime = null;
+
+function drawNuSilhouette(ic, x, y) {
+  ic.save(); ic.translate(x, y);
+  ic.fillStyle = '#7cf';
+  // body
+  ic.fillRect(-12,-10,24,20);
+  // head
+  ic.fillRect(-7,-20,14,11);
+  // V-fin
+  ic.strokeStyle='#ff0'; ic.lineWidth=2;
+  ic.beginPath(); ic.moveTo(-5,-20); ic.lineTo(0,-30); ic.lineTo(5,-20); ic.stroke();
+  // funnels (back)
+  ic.fillStyle='#48a';
+  for(let i=0;i<5;i++) ic.fillRect(-20,-8+i*4,8,3);
+  // legs
+  ic.fillStyle='#68b';
+  ic.fillRect(-11,10,9,12); ic.fillRect(2,10,9,12);
+  // eye
+  ic.fillStyle='#0ff';
+  ic.beginPath(); ic.arc(3,-13,2.5,0,Math.PI*2); ic.fill();
+  ic.restore();
+}
+
+function drawSazabiSilhouette(ic, x, y) {
+  ic.save(); ic.translate(x, y);
+  // body
+  ic.fillStyle='#c33';
+  ic.fillRect(-16,-12,32,24);
+  // shoulders
+  ic.fillStyle='#a22';
+  ic.fillRect(-32,-10,16,16); ic.fillRect(16,-10,16,16);
+  // head dome
+  ic.fillStyle='#e44';
+  ic.beginPath(); ic.arc(0,-18,13,0,Math.PI*2); ic.fill();
+  // mono-eye
+  ic.fillStyle='#f00'; ic.beginPath(); ic.arc(5,-18,5,0,Math.PI*2); ic.fill();
+  ic.fillStyle='#ff0'; ic.beginPath(); ic.arc(5,-18,2.5,0,Math.PI*2); ic.fill();
+  // legs
+  ic.fillStyle='#922';
+  ic.fillRect(-13,12,11,13); ic.fillRect(2,12,11,13);
+  ic.restore();
+}
+
+function runIntro() {
+  const introEl = document.getElementById('intro');
+  const ic = document.getElementById('introCanvas').getContext('2d');
+  const W = 640, H = 640;
+
+  const stars = Array.from({length:160},()=>({
+    x:Math.random()*W, y:Math.random()*H,
+    size:Math.random()*1.5+0.3, speed:Math.random()*0.8+0.2,
+    alpha:Math.random()
+  }));
+
+  function frame(ts) {
+    if (!introStartTime) introStartTime = ts;
+    const elapsed = ts - introStartTime;
+    const t = Math.min(elapsed / INTRO_DURATION, 1);
+
+    // Background
+    ic.fillStyle = '#000008';
+    ic.fillRect(0,0,W,H);
+
+    // Stars drifting left
+    for (const s of stars) {
+      s.x -= s.speed;
+      if (s.x < 0) { s.x = W; s.y = Math.random()*H; }
+      s.alpha += (Math.random()-0.5)*0.04;
+      s.alpha = Math.max(0.1, Math.min(1, s.alpha));
+      ic.fillStyle = `rgba(200,220,255,${s.alpha})`;
+      ic.beginPath(); ic.arc(s.x, s.y, s.size, 0, Math.PI*2); ic.fill();
+    }
+
+    ic.textAlign='center'; ic.textBaseline='middle';
+
+    // "U.C. 0093" (0.04-0.25, fade out 0.4-0.5)
+    if (t > 0.04) {
+      const a = Math.min(1,(t-0.04)/0.1) * (t>0.4 ? Math.max(0,1-(t-0.4)/0.1) : 1);
+      ic.globalAlpha = a;
+      ic.fillStyle='#8af'; ic.font='14px Courier New';
+      ic.fillText('U.C. 0093 ─ 宇宙世紀', W/2, 160);
+      ic.globalAlpha=1;
+    }
+
+    // "機動戦士ガンダム" (0.15-0.5, fade out 0.55-0.65)
+    if (t > 0.15) {
+      const a = Math.min(1,(t-0.15)/0.15) * (t>0.55 ? Math.max(0,1-(t-0.55)/0.1) : 1);
+      ic.globalAlpha = a;
+      ic.shadowColor='#0cf'; ic.shadowBlur=24;
+      ic.fillStyle='#0cf'; ic.font='bold 38px serif';
+      ic.fillText('機動戦士ガンダム', W/2, 240);
+      ic.shadowBlur=0; ic.globalAlpha=1;
+    }
+
+    // "～ 巡り合い宇宙 ～" (0.32-0.55, fade out 0.6-0.7)
+    if (t > 0.32) {
+      const a = Math.min(1,(t-0.32)/0.12) * (t>0.6 ? Math.max(0,1-(t-0.6)/0.1) : 1);
+      ic.globalAlpha = a;
+      ic.fillStyle='#aaf'; ic.font='22px serif';
+      ic.fillText('～ 巡り合い宇宙 ～', W/2, 296);
+      ic.globalAlpha=1;
+    }
+
+    // Mobile suit battle (t 0.44-0.88)
+    if (t > 0.44 && t < 0.9) {
+      const p = (t - 0.44) / 0.44;
+      const nuX = -60 + p * 760;
+      const saX = nuX - 110;
+      const py = 420;
+
+      // Thruster glow behind Sazabi
+      if (saX > -120) {
+        const grd = ic.createRadialGradient(saX-18,py,0,saX-18,py,22);
+        grd.addColorStop(0,'rgba(255,80,0,0.8)'); grd.addColorStop(1,'rgba(255,80,0,0)');
+        ic.fillStyle=grd; ic.beginPath(); ic.arc(saX-18,py,22,0,Math.PI*2); ic.fill();
+      }
+      // Thruster glow behind Nu
+      if (nuX > -60) {
+        const grd2 = ic.createRadialGradient(nuX-14,py,0,nuX-14,py,16);
+        grd2.addColorStop(0,'rgba(0,180,255,0.7)'); grd2.addColorStop(1,'rgba(0,180,255,0)');
+        ic.fillStyle=grd2; ic.beginPath(); ic.arc(nuX-14,py,16,0,Math.PI*2); ic.fill();
+      }
+
+      // Beam shot (after 60% of flight)
+      if (p > 0.55) {
+        const beamA = Math.abs(Math.sin((p-0.55)*Math.PI*8)) * 0.9;
+        ic.globalAlpha = beamA;
+        ic.strokeStyle='#0ff'; ic.lineWidth=3;
+        ic.shadowColor='#0ff'; ic.shadowBlur=8;
+        ic.beginPath(); ic.moveTo(nuX+25, py-8); ic.lineTo(saX-10, py+4); ic.stroke();
+        ic.shadowBlur=0; ic.globalAlpha=1;
+      }
+
+      drawSazabiSilhouette(ic, saX, py);
+      drawNuSilhouette(ic, nuX, py);
+    }
+
+    // Game title (0.72-0.88, fade out 0.9-1.0)
+    if (t > 0.72) {
+      const a = Math.min(1,(t-0.72)/0.1) * (t>0.9 ? Math.max(0,1-(t-0.9)/0.1) : 1);
+      ic.globalAlpha = a;
+      ic.shadowColor='#f80'; ic.shadowBlur=20;
+      ic.fillStyle='#ff0'; ic.font='bold 30px Courier New';
+      ic.fillText('ガンダム・パックマン', W/2, 530);
+      ic.shadowBlur=0; ic.globalAlpha=1;
+    }
+
+    // Final fade to black
+    if (t > 0.9) {
+      ic.globalAlpha = Math.min(1,(t-0.9)/0.1);
+      ic.fillStyle='#000'; ic.fillRect(0,0,W,H);
+      ic.globalAlpha=1;
+    }
+
+    if (elapsed < INTRO_DURATION) {
+      introRaf = requestAnimationFrame(frame);
+    } else {
+      endIntro();
+    }
+  }
+  introRaf = requestAnimationFrame(frame);
+}
+
+function skipIntro() {
+  if (!document.getElementById('intro').style.display ||
+      document.getElementById('intro').style.display !== 'none') {
+    cancelAnimationFrame(introRaf);
+    endIntro();
+  }
+}
+
+function endIntro() {
+  document.getElementById('intro').style.display = 'none';
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function quitToTitle() {
+  gameRunning = false;
+  cancelAnimationFrame(animFrame);
+  score = 0; level = 1;
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = `
+    <h1>ガンダム・パックマン</h1>
+    <div class="subtitle">～ 巡り合い宇宙 ～</div>
+    <div class="legend">
+      <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
+      <div><span>🔴</span> シャア (赤い彗星)　← 追跡者</div>
+      <div><span>🟠</span> ハマーン　← 追跡者</div>
+      <div><span>🔵</span> ギュネイ　← 追跡者</div>
+      <div><span>🟣</span> クェス　← 追跡者</div>
+      <div><span>⚡</span> Iフィールド　← パワーアップ</div>
+      <div><span>★</span> フラッシュ玉　← 得点アイテム</div>
+      <div>矢印キー または WASD で移動</div>
+    </div>
+    <button id="start-btn" onclick="startGame()">START MISSION</button>
+  `;
+  ov.style.display = 'flex';
+}
+
 // ---- Controls ----
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const intro = document.getElementById('intro');
+    if (intro.style.display !== 'none') { skipIntro(); }
+    else if (gameRunning) { quitToTitle(); }
+    e.preventDefault(); return;
+  }
   if (!gameRunning) return;
   switch(e.key) {
     case 'ArrowLeft':  case 'a': case 'A': amuro.nextDr=0; amuro.nextDc=-1; break;
@@ -692,6 +919,9 @@ canvas.addEventListener('touchend', e=>{
 // Initial render
 ctx.fillStyle='#000614';
 ctx.fillRect(0,0,640,640);
+
+// Start intro on load
+runIntro();
 </script>
 </body>
 </html>
