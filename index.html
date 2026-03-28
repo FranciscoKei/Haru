@@ -775,6 +775,7 @@ let masterVol = 0.7;
 function setVolume(el) {
   masterVol = el.value / 100;
   el.style.setProperty('--v', el.value + '%');
+  if (bgmGain) bgmGain.gain.setValueAtTime(masterVol, getAudio().currentTime);
 }
 function getAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1029,6 +1030,7 @@ function stageCleared() {
 function gameOver() {
   gameRunning=false;
   cancelAnimationFrame(animFrame);
+  stopBGM(0.3);
   sfxGameOver();
 
   const W=640, H=640;
@@ -1235,6 +1237,7 @@ function restartGame() {
   document.getElementById('overlay').style.display='none';
   initGame();
   updateHUD();
+  startBGM();
   gameRunning=true;
   lastTime=performance.now();
   animFrame=requestAnimationFrame(gameLoop);
@@ -1245,6 +1248,7 @@ function startGame() {
   document.getElementById('overlay').style.display='none';
   initGame();
   updateHUD();
+  startBGM();
   gameRunning=true;
   lastTime=performance.now();
   animFrame=requestAnimationFrame(gameLoop);
@@ -1364,34 +1368,94 @@ function drawGamdam(ic, cx, cy, sc, alpha, t) {
   ic.restore();
 }
 
-// ── オリジナルオープニングジングル ──
-let introSoundGain = null;
+// ── BGM（オリジナルジングル + ゲームプレイ中もループ） ──
+let bgmGain = null;
+let bgmLoopTimer = null;
+const BGM_LOOP_DUR = 3.0; // ループ1周の長さ（秒）
+
+// 1ループ分のメロディ・ベース・パッドをスケジュール
+function scheduleBGMNotes(t0) {
+  if (!bgmGain) return;
+  const ac = getAudio();
+  function n(freq, start, dur, type, vol, detune) {
+    type = type||'triangle'; vol = vol||0.10; detune = detune||0;
+    const o=ac.createOscillator(), g=ac.createGain(), lp=ac.createBiquadFilter();
+    o.type=type; o.frequency.value=freq; o.detune.value=detune;
+    lp.type='lowpass'; lp.frequency.value=3200;
+    g.gain.setValueAtTime(0, t0+start);
+    g.gain.linearRampToValueAtTime(vol, t0+start+0.04);
+    g.gain.setValueAtTime(vol, t0+start+Math.max(0,dur-0.06));
+    g.gain.exponentialRampToValueAtTime(0.001, t0+start+dur+0.06);
+    o.connect(lp); lp.connect(g); g.connect(bgmGain);
+    o.start(t0+start); o.stop(t0+start+dur+0.12);
+  }
+  // 空間パッド（ドローン）
+  [[65,0.05],[98,0.035],[130,0.025]].forEach(([f,v])=>n(f,0,BGM_LOOP_DUR,'sine',v));
+  // メロディー：G4 A4 B4 D5 G5 E5 D5 G4
+  [[392,0.0,0.24],[440,0.28,0.20],[494,0.52,0.20],[587,0.77,0.34],
+   [784,1.16,0.38],[659,1.59,0.23],[587,1.87,0.20],[392,2.12,0.65]
+  ].forEach(([f,s,d])=>{n(f,s,d,'triangle',0.10); n(f,s,d,'sine',0.06);});
+  // ベースライン：G2 A2 B2 D3 G3
+  [[98,0.0,0.50],[110,0.50,0.50],[123,1.00,0.50],[147,1.50,0.50],[196,2.00,0.55]
+  ].forEach(([f,s,d])=>n(f,s,d,'sine',0.17));
+}
+
+// ループを開始（t0 = 次のループ開始の絶対時刻）
+function startBGMLoop(t0) {
+  if (!bgmGain) return;
+  scheduleBGMNotes(t0);
+  const delay = Math.max(100, (t0 - getAudio().currentTime + BGM_LOOP_DUR - 0.3) * 1000);
+  bgmLoopTimer = setTimeout(() => {
+    if (!bgmGain) return;
+    startBGMLoop(getAudio().currentTime + 0.05);
+  }, delay);
+}
+
+// BGMを開始（bgmGainがなければ新規作成）
+function startBGM() {
+  if (bgmGain) return;
+  if (masterVol === 0) return;
+  const ac = getAudio();
+  bgmGain = ac.createGain();
+  bgmGain.gain.setValueAtTime(masterVol, ac.currentTime);
+  bgmGain.connect(ac.destination);
+  startBGMLoop(ac.currentTime + 0.05);
+}
+
+// BGMをフェードアウトして停止
+function stopBGM(fade) {
+  fade = fade !== undefined ? fade : 0.4;
+  clearTimeout(bgmLoopTimer);
+  bgmLoopTimer = null;
+  if (bgmGain) {
+    const ac = getAudio();
+    bgmGain.gain.cancelScheduledValues(ac.currentTime);
+    bgmGain.gain.linearRampToValueAtTime(0, ac.currentTime + fade);
+    bgmGain = null;
+  }
+}
 
 function playIntroJingle() {
   if (masterVol === 0) return;
   const ac = getAudio();
   const t0 = ac.currentTime + 0.1;
 
-  const master = ac.createGain();
-  master.gain.setValueAtTime(masterVol, t0);
-  master.gain.setValueAtTime(masterVol, t0 + 4.2);
-  master.gain.linearRampToValueAtTime(0, t0 + 5.1);
-  master.connect(ac.destination);
-  introSoundGain = master;
+  bgmGain = ac.createGain();
+  bgmGain.gain.setValueAtTime(masterVol, t0);
+  bgmGain.connect(ac.destination);
 
-  // ヘルパー：単音を生成
-  function note(freq, start, dur, type = 'sawtooth', vol = 0.13, detune = 0) {
-    const o = ac.createOscillator();
-    const g = ac.createGain();
-    const lp = ac.createBiquadFilter();
-    o.type = type; o.frequency.value = freq; o.detune.value = detune;
-    lp.type = 'lowpass'; lp.frequency.value = 3200;
-    g.gain.setValueAtTime(0, t0 + start);
-    g.gain.linearRampToValueAtTime(vol, t0 + start + 0.04);
-    g.gain.setValueAtTime(vol, t0 + start + Math.max(0, dur - 0.06));
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + start + dur + 0.06);
-    o.connect(lp); lp.connect(g); g.connect(master);
-    o.start(t0 + start); o.stop(t0 + start + dur + 0.12);
+  // ヘルパー：単音を生成（イントロ専用）
+  function note(freq, start, dur, type, vol, detune) {
+    type = type||'sawtooth'; vol = vol||0.13; detune = detune||0;
+    const o=ac.createOscillator(), g=ac.createGain(), lp=ac.createBiquadFilter();
+    o.type=type; o.frequency.value=freq; o.detune.value=detune;
+    lp.type='lowpass'; lp.frequency.value=3200;
+    g.gain.setValueAtTime(0, t0+start);
+    g.gain.linearRampToValueAtTime(vol, t0+start+0.04);
+    g.gain.setValueAtTime(vol, t0+start+Math.max(0,dur-0.06));
+    g.gain.exponentialRampToValueAtTime(0.001, t0+start+dur+0.06);
+    o.connect(lp); lp.connect(g); g.connect(bgmGain);
+    o.start(t0+start); o.stop(t0+start+dur+0.12);
   }
 
   // ── 宇宙的な空間パッド（ドローン） ──
@@ -1401,54 +1465,46 @@ function playIntroJingle() {
 
   // ── ワープ起動 上昇スウィープ ──
   {
-    const o = ac.createOscillator(), g = ac.createGain();
-    const bp = ac.createBiquadFilter();
-    o.type = 'sawtooth';
+    const o=ac.createOscillator(), g=ac.createGain(), bp=ac.createBiquadFilter();
+    o.type='sawtooth';
     o.frequency.setValueAtTime(60, t0);
-    o.frequency.exponentialRampToValueAtTime(900, t0 + 0.9);
-    bp.type = 'bandpass'; bp.frequency.value = 350; bp.Q.value = 2.5;
+    o.frequency.exponentialRampToValueAtTime(900, t0+0.9);
+    bp.type='bandpass'; bp.frequency.value=350; bp.Q.value=2.5;
     g.gain.setValueAtTime(0.09, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
-    o.connect(bp); bp.connect(g); g.connect(master);
-    o.start(t0); o.stop(t0 + 0.95);
+    g.gain.exponentialRampToValueAtTime(0.001, t0+0.9);
+    o.connect(bp); bp.connect(g); g.connect(bgmGain);
+    o.start(t0); o.stop(t0+0.95);
   }
 
   // ── ファンファーレ（C5→E5→G5→C6） ──
   [[523,0.55,0.14],[659,0.72,0.14],[784,0.90,0.16],[1047,1.10,0.45]].forEach(([f,s,d]) => {
     note(f, s, d, 'sawtooth', 0.11);
-    note(f, s, d, 'sawtooth', 0.05, -7); // 厚みを出すデチューン
+    note(f, s, d, 'sawtooth', 0.05, -7);
   });
 
-  // ── オリジナルメロディー（8音） ──
-  // G4 A4 B4 D5 G5 E5 D5 G4
-  [
-    [392,1.65,0.24],[440,1.93,0.20],[494,2.17,0.20],
-    [587,2.42,0.34],[784,2.81,0.38],[659,3.24,0.23],
-    [587,3.52,0.20],[392,3.77,0.65],
-  ].forEach(([f,s,d]) => {
-    note(f, s, d, 'triangle', 0.10);
-    note(f, s, d, 'sine',     0.06); // サイン波とブレンドで温かみ
+  // ── インパクトノイズ（ファンファーレに合わせた打撃音） ──
+  [0.55, 1.10].forEach(s => {
+    const sz=Math.floor(ac.sampleRate*0.09);
+    const buf=ac.createBuffer(1,sz,ac.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<sz;i++) data[i]=(Math.random()*2-1)*(1-i/sz);
+    const src=ac.createBufferSource(); src.buffer=buf;
+    const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=220;
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.22, t0+s);
+    g.gain.exponentialRampToValueAtTime(0.001, t0+s+0.18);
+    src.connect(lp); lp.connect(g); g.connect(bgmGain);
+    src.start(t0+s);
   });
 
-  // ── ベースライン ──
-  [[98,1.65,0.50],[110,2.15,0.50],[123,2.65,0.50],[147,3.15,0.50],[196,3.65,0.55]].forEach(([f,s,d]) => {
-    note(f, s, d, 'sine', 0.17);
-  });
-
-  // ── インパクトノイズ（ドラム的打撃音） ──
-  [0.55, 1.10, 2.81].forEach(s => {
-    const sz = Math.floor(ac.sampleRate * 0.09);
-    const buf = ac.createBuffer(1, sz, ac.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < sz; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / sz);
-    const src = ac.createBufferSource(); src.buffer = buf;
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.22, t0 + s);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + s + 0.18);
-    src.connect(lp); lp.connect(g); g.connect(master);
-    src.start(t0 + s);
-  });
+  // ── イントロ後、メロディーループ開始（ファンファーレ終了後） ──
+  const firstLoopStart = t0 + 1.65; // ファンファーレ後にメロディー開始
+  scheduleBGMNotes(firstLoopStart);
+  const firstLoopDelay = Math.max(100, (firstLoopStart - ac.currentTime + BGM_LOOP_DUR - 0.3) * 1000);
+  bgmLoopTimer = setTimeout(() => {
+    if (!bgmGain) return;
+    startBGMLoop(getAudio().currentTime + 0.05);
+  }, firstLoopDelay);
 }
 
 function runIntro() {
@@ -1561,12 +1617,6 @@ function runIntro() {
 function skipIntro() {
   if (!document.getElementById('intro').style.display ||
       document.getElementById('intro').style.display !== 'none') {
-    if (introSoundGain) {
-      const ac = getAudio();
-      introSoundGain.gain.cancelScheduledValues(ac.currentTime);
-      introSoundGain.gain.linearRampToValueAtTime(0, ac.currentTime + 0.15);
-      introSoundGain = null;
-    }
     cancelAnimationFrame(introRaf);
     endIntro();
   }
@@ -1580,6 +1630,7 @@ function endIntro() {
 function quitToTitle() {
   gameRunning = false;
   cancelAnimationFrame(animFrame);
+  stopBGM(0.5);
   score = 0; level = 1;
   const ov = document.getElementById('overlay');
   ov.innerHTML = `
