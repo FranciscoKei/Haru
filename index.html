@@ -183,7 +183,7 @@
 <div id="game-wrap">
   <div id="hud">
     <div class="score-area">SCORE: <span id="scoreVal">0</span></div>
-    <div class="lives-area">AMURO: <span id="livesVal">❤❤❤</span></div>
+    <div class="lives-area">AROMU: <span id="livesVal">❤❤❤</span></div>
     <div class="level-area">STAGE: <span id="levelVal">1</span></div>
     <div class="vol-area">🔊<input type="range" id="volSlider" min="0" max="100" value="70" oninput="setVolume(this)"></div>
   </div>
@@ -215,11 +215,11 @@
   <h1>ガムダム・パックマン</h1>
   <div class="subtitle">～ 巡り合い宇宙 ～</div>
   <div class="legend">
-    <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
-    <div><span>🔴</span> シャア (赤い彗星)　← 追跡者</div>
-    <div><span>🟠</span> ハマーン　← 追跡者</div>
-    <div><span>🔵</span> ギュネイ　← 追跡者</div>
-    <div><span>🟣</span> クェス　← 追跡者</div>
+    <div><span>🤖</span> アロム (RX-78)　← あなた</div>
+    <div><span>🔴</span> アシャ (赤い彗星)　← 追跡者</div>
+    <div><span>🟠</span> マーハン　← 追跡者</div>
+    <div><span>🔵</span> ネイギュ　← 追跡者</div>
+    <div><span>🟣</span> スクェ　← 追跡者</div>
     <div><span>⚡</span> Iフィールド　← パワーアップ</div>
     <div><span>★</span> フラッシュ玉　← 得点アイテム</div>
     <div>矢印キー または WASD で移動</div>
@@ -331,7 +331,7 @@ let animFrame;
 let lastTime = 0;
 let gameRunning = false;
 
-const GHOST_NAMES = ['シャア','ハマーン','ギュネイ','クェス'];
+const GHOST_NAMES = ['アシャ','マーハン','ネイギュ','スクェ'];
 const GHOST_COLORS = ['#f33','#f82','#44f','#a4f'];
 const GHOST_EMOJIS = ['🔴','🟠','🔵','🟣'];
 // fright color
@@ -643,7 +643,7 @@ function drawGhost(g) {
     ctx.beginPath(); ctx.arc(ex+1.5, ey-1.5, 1.2, 0, Math.PI*2); ctx.fill();
 
     // ── Character-specific SD features ──
-    if (g.name === 'シャア') {
+    if (g.name === 'アシャ') {
       // Sazabi: three fin-spikes on top
       ctx.fillStyle = '#aa1100';
       ctx.beginPath(); // center fin
@@ -656,7 +656,7 @@ function drawGhost(g) {
       ctx.fillStyle='rgba(255,100,80,0.5)';
       ctx.fillRect(-5, 2, 10, 6);
 
-    } else if (g.name === 'ハマーン') {
+    } else if (g.name === 'マーハン') {
       // Qubeley: large elegant ear-fins
       ctx.fillStyle = '#bb33bb';
       ctx.beginPath();
@@ -669,7 +669,7 @@ function drawGhost(g) {
       ctx.fillStyle='#ee88ee';
       ctx.beginPath(); ctx.arc(0,-R-3,4,0,Math.PI*2); ctx.fill();
 
-    } else if (g.name === 'ギュネイ') {
+    } else if (g.name === 'ネイギュ') {
       // Jagd Doga: angled shoulder blades
       ctx.fillStyle = '#117755';
       ctx.beginPath();
@@ -682,7 +682,7 @@ function drawGhost(g) {
       ctx.fillStyle='rgba(0,255,180,0.25)';
       ctx.fillRect(-R+3,-7,(R-3)*2,3);
 
-    } else if (g.name === 'クェス') {
+    } else if (g.name === 'スクェ') {
       // Alpha Azieru: huge bulky shoulder orbs
       ctx.fillStyle = '#552288';
       ctx.beginPath(); ctx.arc(-R-4, 0, 8, 0, Math.PI*2); ctx.fill();
@@ -1142,10 +1142,10 @@ function gameOver() {
 
   // Consolation messages
   const msgs = [
-    'また会おう、アムロ…',
+    'また会おう、アロム…',
     '落ち着け、ニュータイプ！',
     '逃げるだけが戦いじゃない',
-    'シャアめ…次こそは！',
+    'アシャめ…次こそは！',
     'ガンダムは不滅だ！',
   ];
   const msg = msgs[Math.floor(Math.random() * msgs.length)];
@@ -1727,11 +1727,11 @@ function quitToTitle() {
     <h1>ガムダム・パックマン</h1>
     <div class="subtitle">～ 巡り合い宇宙 ～</div>
     <div class="legend">
-      <div><span>🤖</span> アムロ (RX-78)　← あなた</div>
-      <div><span>🔴</span> シャア (赤い彗星)　← 追跡者</div>
-      <div><span>🟠</span> ハマーン　← 追跡者</div>
-      <div><span>🔵</span> ギュネイ　← 追跡者</div>
-      <div><span>🟣</span> クェス　← 追跡者</div>
+      <div><span>🤖</span> アロム (RX-78)　← あなた</div>
+      <div><span>🔴</span> アシャ (赤い彗星)　← 追跡者</div>
+      <div><span>🟠</span> マーハン　← 追跡者</div>
+      <div><span>🔵</span> ネイギュ　← 追跡者</div>
+      <div><span>🟣</span> スクェ　← 追跡者</div>
       <div><span>⚡</span> Iフィールド　← パワーアップ</div>
       <div><span>★</span> フラッシュ玉　← 得点アイテム</div>
       <div>矢印キー または WASD で移動</div>
